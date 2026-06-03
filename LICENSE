@@ -1,6 +1,10 @@
 MIT License
 
+<<<<<<< HEAD
 Copyright (c) 2026 K Aditya
+=======
+Copyright (c) 2026 kagglepipe contributors
+>>>>>>> dd9db8e (Initial commit: kagglepipe — full terminal control over Kaggle)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

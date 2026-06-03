@@ -1,0 +1,73 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# {{ project_title | default('kagglepipe') }} — branch `{{ branch }}`\n",
+    "Generated {{ date }}.\n",
+    "\n",
+    "Source dataset: `{{ src_dataset_slug }}` v{{ src_version }}."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {"tags": ["kagglepipe-setup"]},
+   "outputs": [],
+   "source": [
+    "import os, sys\n",
+    "src_mount = '{{ src_mount }}'\n",
+    "sys.path.insert(0, os.path.join(src_mount, 'src'))\n",
+    "sys.path.insert(0, src_mount)\n",
+    "os.chdir(src_mount)\n",
+    "print('Source mounted at:', src_mount)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {"tags": ["kagglepipe-workdir"]},
+   "outputs": [],
+   "source": [
+    "import os\n",
+    "out_dir = '{{ out_dir }}'\n",
+    "os.makedirs(out_dir, exist_ok=True)\n",
+    "print('Output dir:', out_dir)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {"tags": ["kagglepipe-run"]},
+   "outputs": [],
+   "source": [
+    "{% if data_dataset_slug %}\n",
+    "data_mount = '{{ data_mount }}'\n",
+    "print('Data mounted at:', data_mount)\n",
+    "{% endif %}\n",
+    "!PYTHONPATH=$PYTHONPATH:'{{ src_mount }}'/src:'{{ src_mount }}' {{ notebook_command }}"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {"tags": ["kagglepipe-listing"]},
+   "outputs": [],
+   "source": [
+    "import os\n",
+    "out_dir = '{{ out_dir }}'\n",
+    "print('Files in out_dir:')\n",
+    "for f in sorted(os.listdir(out_dir)):\n",
+    "    full = os.path.join(out_dir, f)\n",
+    "    print(f'  {f}  ({os.path.getsize(full)} bytes)')"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
+  "language_info": {"name": "python", "version": "3.11"}
+ },
+ "nbformat": 4,
+ "nbformat_minor": 4
+}
