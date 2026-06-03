@@ -1,46 +1,57 @@
 # Quickstart
 
-A full end-to-end walkthrough: take a brand-new local project, configure
-kagglepipe, push it to Kaggle, run a feature, and pull the result back.
+End-to-end: scaffold a project, configure kagglepipe, push source to Kaggle,
+run a feature branch, and pull the result back.
+
+---
 
 ## 0. Install
 
 ```bash
-git clone <repo> kagglepipe && cd kagglepipe
+git clone https://github.com/AdityaProCoder/kagglepipe && cd kagglepipe
 python -m venv .venv
-.venv\Scripts\python.exe -m pip install -e ".[dev]"     # Windows
-.venv/bin/python -m pip install -e ".[dev]"             # macOS / Linux
+.venv\Scripts\python.exe -m pip install -e ".[dev]"   # Windows
+.venv/bin/python -m pip install -e ".[dev]"             # Linux/macOS
 ```
 
-## 1. Configure credentials
+---
+
+## 1. Credentials
 
 ```bash
-kagglepipe login                       # interactive
-# or set KAGGLE_USERNAME and KAGGLE_KEY in your shell
-kagglepipe whoami                      # verify
+kagglepipe login              # interactive (username + API key prompts)
+# or manually:
+mkdir -p ~/.kaggle
+echo '{"username":"you","key":"yourkey"}' > ~/.kaggle/kaggle.json
+# or env vars:
+#   export KAGGLE_USERNAME=you KAGGLE_KEY=yourkey
+
+kagglepipe whoami             # verify
 ```
 
-## 2. Scaffold a config
+---
 
-In the project you want to run on Kaggle:
+## 2. Scaffold config
 
 ```bash
 cd ~/my-ml-project
-kagglepipe config init
-$EDITOR kaggle.toml
+kagglepipe config init --name myproj
 ```
 
-A minimal `kaggle.toml` looks like:
+Edit `kaggle.toml` — here's a working minimum:
 
 ```toml
 [project]
 name = "myproj"
 
 [source]
-include = ["src", "scripts", "pyproject.toml", "README.md"]
+include = ["src", "scripts", "pyproject.toml"]
 exclude_dirs = [".venv", "data", "models", ".git", "__pycache__"]
-exclude_exts = [".parquet", ".lgb", ".pt", ".bin"]
+exclude_exts = [".parquet", ".lgb", ".pt"]
 src_dataset_slug = "{username}/myproj-src"
+
+[data]
+dataset_slug = "{username}/myproj-data"
 
 [feature]
 branches = ["fast", "accurate"]
@@ -60,23 +71,24 @@ notebooks_dir = "kaggle_notebooks"
 features_dir  = "features_kaggle"
 ```
 
-Inspect the merged result:
+Preview the resolved config:
 
 ```bash
 kagglepipe config show
-kagglepipe config show --json   # machine-readable
+kagglepipe config show --json
 ```
+
+---
 
 ## 3. Upload source
 
 ```bash
 kagglepipe src upload
-# Packaging . -> you/myproj-src v1
-# Built tarball: /tmp/src.tar.gz (1234 bytes)
-# Uploaded: you/myproj-src v1
+# -> you/myproj-src v1
+# Next run auto-bumps to v2, then v3 ...
 ```
 
-The next run auto-bumps to v2 (then v3, ...).
+---
 
 ## 4. Run a feature
 
@@ -88,73 +100,87 @@ kagglepipe feature run accurate --gpu t4x2
 # Downloaded: features_kaggle/accurate.parquet
 ```
 
-Multiple branches, sequentially:
+Multiple branches, one after another:
 
 ```bash
 kagglepipe feature all --gpu t4x2
 # === fast ===
-# ...
 # === accurate ===
-# ...
-# === Summary (412s) ===
-# Total: 2, OK: 2, Failed: 0
+# Summary (412s) — Total: 2, OK: 2, Failed: 0
 ```
 
-## 5. See your kernels
+Override branches or GPU per-invocation:
 
 ```bash
-kagglepipe status
-# you/myproj-accurate                          complete     2026-06-03 14:23
-# you/myproj-fast                              complete     2026-06-03 14:30
+kagglepipe feature run accurate --gpu none --timeout 600
+kagglepipe feature all --branches fast,accurate --gpu t4x2
 ```
 
-## 6. Other useful commands
+---
+
+## 5. Check results
+
+```bash
+kagglepipe status                    # your kernels matching kernel_title_prefix
+kagglepipe status --all             # all your kernels
+kagglepipe status --csv             # CSV output
+
+kagglepipe kernels logs you/myproj-accurate
+kagglepipe kernels output you/myproj-accurate
+kagglepipe kernels stop you/myproj-accurate
+```
+
+---
+
+## 6. Other commands
 
 ```bash
 kagglepipe datasets list --user you
 kagglepipe datasets versions you/myproj-src
-kagglepipe kernels logs you/myproj-accurate
-kagglepipe kernels stop you/myproj-accurate      # cancel a running kernel
-kagglepipe kernels output you/myproj-accurate   # download output dir
+kagglepipe datasets get you/myproj-data ./data/
+
 kagglepipe competitions list
 kagglepipe competitions leaderboard titanic --top 10
+kagglepipe competitions submit titanic submission.csv -m "v1 baseline"
 ```
 
-## 7. Advanced: env-var overrides
+---
 
-Useful for CI:
+## 7. Env-var overrides (for CI)
 
 ```bash
 KAGGLEPIPE_FEATURE__DEFAULT_GPU=p100 \
 KAGGLEPIPE_FEATURE__DEFAULT_TIMEOUT_SEC=3600 \
-KAGGLEPIPE_FEATURE__BRANCHES=ci-only \
-kagglepipe feature run ci-only
+kagglepipe feature run accurate
 ```
 
-## 8. Advanced: custom notebook templates
+Format: `KAGGLEPIPE_<SECTION>__<FIELD>` (double underscore). Lists are
+comma-separated; booleans accept `1`/`true`/`yes`/`on`.
 
-`feature.notebook_template` accepts either:
+---
 
-- a Python dotted path: `mypkg.templates.notebook` (kagglepipe looks for
-  `mypkg/templates/notebook.py.j2` or `mypkg/templates/notebook.j2`)
-- a path to a `.j2` file: `/abs/path/to/my_template.j2`
+## 8. Custom notebook templates
 
-The default template at
-`kagglepipe/templates/notebook_default.py.j2` is the canonical reference
-for the variables kagglepipe passes to render (`branch`, `src_dataset_slug`,
-`src_mount`, `data_mount`, `out_dir`, `notebook_command`, `gpu`, `date`).
+`feature.notebook_template` in `kaggle.toml` accepts:
 
-## 9. Advanced: `templates/<...>` override for the freuid pattern
+- **Python dotted path** — `mypkg.templates.my_template` → looks for
+  `mypkg/templates/my_template.py.j2`
+- **Absolute file path** — `/abs/path/to/my_template.j2`
 
-If you want kagglepipe to behave like the original freuid
-`scripts/kaggle_run.py` (uploads `freuid-src` and `freuid-sample`,
-extracts from a `configs/features/{branch}.yaml` config), copy
-`examples/freuid/kaggle.toml` from this repo into the freuid checkout
-and run:
+Variables passed to every template:
 
-```bash
-pip install kagglepipe
-kagglepipe src upload
-kagglepipe feature run dinov3
-kagglepipe feature all
-```
+| Variable | Description |
+|---|---|
+| `branch` | Feature branch name |
+| `src_dataset_slug` | Source dataset slug |
+| `src_version` | Source dataset version |
+| `src_mount` | Kaggle mount path for source |
+| `data_dataset_slug` | Data dataset slug (empty if none) |
+| `data_mount` | Kaggle mount path for data |
+| `out_dir` | Kernel output directory |
+| `notebook_command` | Command to run in the notebook |
+| `gpu` | GPU instance (e.g. `t4 x2`, `p100`, or `None`) |
+| `date` | Render timestamp (YYYY-MM-DD) |
+
+The default template ships at `kagglepipe/templates/notebook_default.py.j2`
+and is a good reference.
