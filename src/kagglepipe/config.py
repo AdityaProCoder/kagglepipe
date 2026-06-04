@@ -79,6 +79,12 @@ class FeatureSection:
     output_glob: str = "{branch}.parquet"
     default_timeout_sec: int = 1800
     poll_interval_sec: int = 30
+    # P1: parallel execution. 0 / 1 = sequential (default for backward compat).
+    parallel: int = 1
+    # P4: dependency graph. branch -> list of upstream branch names.
+    dependencies: dict[str, list[str]] = field(default_factory=dict)
+    # P5: artifact caching. 0 = disabled, 1 = enabled.
+    cache: int = 0
 
 
 @dataclass
@@ -103,6 +109,7 @@ class Config:
     feature: FeatureSection = field(default_factory=FeatureSection)
     kernels: KernelsSection = field(default_factory=KernelsSection)
     paths: PathsSection = field(default_factory=PathsSection)
+    competition: dict[str, Any] = field(default_factory=dict)
     config_path: Path | None = None
 
 
@@ -140,6 +147,7 @@ def load(path: Path | None = None) -> Config:
         feature=_coerce_section(FeatureSection, raw.get("feature", {})),
         kernels=_coerce_section(KernelsSection, raw.get("kernels", {})),
         paths=_coerce_section(PathsSection, raw.get("paths", {})),
+        competition=raw.get("competition", {}) or {},
         config_path=cfg_path if cfg_path.exists() else None,
     )
     return _apply_env_overrides(config)
@@ -195,6 +203,7 @@ def to_dict(cfg: Config) -> dict[str, Any]:
         "feature": asdict(cfg.feature),
         "kernels": asdict(cfg.kernels),
         "paths": asdict(cfg.paths),
+        "competition": cfg.competition,
     }
     if cfg.config_path is not None:
         out["_config_path"] = str(cfg.config_path)

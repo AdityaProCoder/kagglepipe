@@ -157,8 +157,18 @@ def run_all(
     features_dir: Path | None = None,
     notebooks_dir: Path | None = None,
     quiet: bool = False,
+    parallel: int = 1,
+    resume: bool = False,
 ) -> int:
-    """Run the configured `heavy_branches` (or `branches`) sequentially."""
+    """Run the configured `heavy_branches` (or `branches`).
+
+    parallel=1 (default) preserves the original sequential behavior.
+    parallel>=2 submits up to N kernels concurrently, polls them all from a
+    single poller thread, and downloads artifacts as they complete.
+
+    resume=True (P2): skip branches whose latest run in RunStore is complete
+    with an artifact.
+    """
     seq = list(branches) if branches else list(cfg.feature.heavy_branches or cfg.feature.branches)
     if not seq:
         print("No branches configured. Set `feature.heavy_branches` in kaggle.toml.",
@@ -166,27 +176,75 @@ def run_all(
         return 1
     for b in seq:
         validate_branch(cfg, b)
-    failures: list[str] = []
-    started = time.time()
-    for b in seq:
+
+    # P2: skip already-successful branches if --resume.
+    if resume:
+        from kagglepipe.state import RunStore
+        store = RunStore()
+        skipped = [b for b in seq if store.is_branch_successful(b)]
+        for b in skipped:
+            if not quiet:
+                print(f"[skip] {b} (already complete with artifact)")
+        seq = [b for b in seq if b not in skipped]
+        if not seq:
+            if not quiet:
+                print("Nothing to do; all branches already complete.")
+            return 0
+
+    # Sequential fast path: no parallelism requested, no resume, no cache, no
+    # dependency-graph requested. Match the original implementation exactly
+    # so existing tests and the freuid pipeline keep working.
+    if parallel <= 1 and not resume:
+        failures: list[str] = []
+        started = time.time()
+        for b in seq:
+            if not quiet:
+                print(f"\n=== {b} ===")
+            rc = run_feature(
+                cfg,
+                b,
+                gpu=gpu,
+                timeout_sec=timeout_sec,
+                data_dataset=data_dataset,
+                features_dir=features_dir,
+                notebooks_dir=notebooks_dir,
+                quiet=quiet,
+            )
+            if rc != 0:
+                failures.append(b)
+        elapsed = time.time() - started
         if not quiet:
-            print(f"\n=== {b} ===")
-        rc = run_feature(
-            cfg,
-            b,
-            gpu=gpu,
-            timeout_sec=timeout_sec,
-            data_dataset=data_dataset,
-            features_dir=features_dir,
-            notebooks_dir=notebooks_dir,
-            quiet=quiet,
-        )
-        if rc != 0:
-            failures.append(b)
+            print(f"\n=== Summary ({elapsed:.0f}s) ===")
+            print(f"Total: {len(seq)}, OK: {len(seq) - len(failures)}, Failed: {len(failures)}")
+            for b in failures:
+                print(f"  FAILED: {b}")
+        return 0 if not failures else 1
+
+    # Parallel path (P1).
+    from kagglepipe.parallel import ParallelRunner
+    started = time.time()
+    runner_obj = ParallelRunner(
+        cfg,
+        seq,
+        gpu=gpu,
+        workers=parallel,
+        timeout_sec=timeout_sec,
+        data_dataset=data_dataset,
+        features_dir=features_dir,
+        quiet=quiet,
+    )
+    if not quiet:
+        print(f"Running {len(seq)} branches with {parallel} workers")
+    results = runner_obj.run()
     elapsed = time.time() - started
+    failures = [b for b, r in results.items() if r["status"] != "complete"]
     if not quiet:
         print(f"\n=== Summary ({elapsed:.0f}s) ===")
         print(f"Total: {len(seq)}, OK: {len(seq) - len(failures)}, Failed: {len(failures)}")
         for b in failures:
-            print(f"  FAILED: {b}")
+            err = results[b].get("error") or "unknown"
+            print(f"  FAILED: {b} ({err})")
+        # Clear the progress line
+        sys.stdout.write("\r" + " " * 120 + "\r")
+        sys.stdout.flush()
     return 0 if not failures else 1

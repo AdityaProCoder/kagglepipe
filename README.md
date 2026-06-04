@@ -301,11 +301,17 @@ Kaggle CLI is the **engine**. KagglePipe is the **vehicle**.
 
 Planned features (contributions welcome):
 
-- **Parallel branch execution** — `feature all --parallel` runs branches simultaneously
-- **Dependency graphs** — express which branches depend on which outputs
-- **Artifact caching** — skip branches whose inputs haven't changed
-- **Experiment tracking** — tag runs, query metrics, diff configs
-- **Submission automation** — `kagglepipe competitions submit` with config-driven filenames
+- **Parallel branch execution** ✅ — `feature all --parallel 3` runs branches simultaneously
+- **Retry/resume failed runs** ✅ — `feature retry failed` / `feature all --resume`
+- **Submission automation** ✅ — `kagglepipe submit` + `submissions list/latest`
+- **Dependency graphs** ✅ — `feature build <target>` resolves a DAG from `[feature].dependencies`
+- **Artifact caching** ✅ — `cache status` / `cache clear` skip branches whose inputs haven't changed
+- **Experiment tracking** ✅ — `experiments record/list/show` ties git + datasets + features + submissions together
+- **Feature registry** ✅ — `features list/show` records every generated feature locally
+- **Dataset lineage** ✅ — `lineage show <feature>` walks the upstream chain
+- Cost tracking and per-kernel GPU-hour attribution
+- Remote caching across machines (S3-backed)
+- Local first-class re-execution of kernels without re-pushing
 
 ---
 
@@ -328,7 +334,11 @@ download cycle, it would significantly improve first-impression conversion.
 | `kagglepipe config show [--json]` | Print effective config |
 | `kagglepipe src upload [--version N]` | Package & push source dataset (auto-versions) |
 | `kagglepipe feature run <branch>` | Render notebook → push → poll → download artifact |
-| `kagglepipe feature all [--branches a,b]` | Run all configured branches sequentially |
+| `kagglepipe feature all [--parallel N] [--resume]` | Run all configured branches; `N>=2` for concurrency |
+| `kagglepipe feature retry [selector]` | Re-run failed/error/timeout/all branches (P2) |
+| `kagglepipe feature resume` | Resume, skipping branches that already completed (P2) |
+| `kagglepipe feature build <target>` | Run a feature plus its declared dependencies (P4) |
+| `kagglepipe feature plan <target>` | Print the dependency plan for `<target>` (P4) |
 | `kagglepipe status [--all] [--csv]` | List your kernels |
 | `kagglepipe kernels list` | List kernels with filters |
 | `kagglepipe kernels status <slug>` | Live kernel status |
@@ -342,6 +352,12 @@ download cycle, it would significantly improve first-impression conversion.
 | `kagglepipe competitions list` | Active competitions |
 | `kagglepipe competitions submit <comp> <file> -m "msg"` | Submit to a competition |
 | `kagglepipe competitions leaderboard <comp>` | Competition leaderboard |
+| `kagglepipe submit [--competition X] [--file f] [--train]` | Submit a file (P3) |
+| `kagglepipe submissions list\|latest` | Local submission history (P3) |
+| `kagglepipe cache status\|clear` | Artifact cache (P5) |
+| `kagglepipe experiments record\|list\|show` | Experiment tracking (P6) |
+| `kagglepipe features list\|show` | Feature registry (P7) |
+| `kagglepipe lineage show\|add-parent\|remove` | Dataset lineage (P8) |
 
 Run `kagglepipe <cmd> --help` for all flags.
 

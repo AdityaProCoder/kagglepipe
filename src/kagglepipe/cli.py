@@ -6,16 +6,22 @@ import argparse
 import sys
 from pathlib import Path
 
-from kagglepipe import __version__, config as cfg_mod
+from kagglepipe import __version__, cache as cache_mod, config as cfg_mod
 from kagglepipe.commands import (
     auth as auth_cmd,
     competitions as comp_cmd,
     config_cmd,
     datasets as ds_cmd,
+    experiments as exp_cmd,
     feature as feature_cmd,
+    features_reg as features_cmd,
+    graph as graph_cmd,
     kernels as kernels_cmd,
+    lineage as lineage_cmd,
+    retry as retry_cmd,
     src as src_cmd,
     status as status_cmd,
+    submissions as submissions_cmd,
 )
 
 
@@ -86,6 +92,39 @@ def _build_parser() -> argparse.ArgumentParser:
     p_all.add_argument("--data-dataset", default=None)
     p_all.add_argument("--features-dir", type=Path, default=None)
     p_all.add_argument("--notebooks-dir", type=Path, default=None)
+    p_all.add_argument(
+        "--parallel", type=int, default=1,
+        help="Number of concurrent kernel workers (P1). 1 = sequential.",
+    )
+    p_all.add_argument(
+        "--resume", action="store_true",
+        help="Skip branches whose last run completed with an artifact (P2).",
+    )
+    p_retry = feat_sub.add_parser("retry", help="Retry failed branches (P2)")
+    p_retry.add_argument(
+        "selector", nargs="?",
+        help="What to retry: 'failed' (default), 'error', 'timeout', 'incomplete', 'all', or a single branch name.",
+    )
+    p_retry.add_argument("--gpu", default=None, choices=["p100", "t4x2", "none"])
+    p_retry.add_argument("--timeout", type=int, default=None)
+    p_retry.add_argument("--parallel", type=int, default=1)
+    p_resume = feat_sub.add_parser("resume", help="Resume a run, skipping completed branches (P2)")
+    p_resume.add_argument("--branches", default=None)
+    p_resume.add_argument("--gpu", default=None, choices=["p100", "t4x2", "none"])
+    p_resume.add_argument("--timeout", type=int, default=None)
+    p_resume.add_argument("--parallel", type=int, default=1)
+    p_build = feat_sub.add_parser(
+        "build", help="Build a feature, running its declared dependency closure first (P4).",
+    )
+    p_build.add_argument("target", help="Target feature name")
+    p_build.add_argument("--gpu", default=None, choices=["p100", "t4x2", "none"])
+    p_build.add_argument("--timeout", type=int, default=None)
+    p_build.add_argument("--data-dataset", default=None)
+    p_build.add_argument("--parallel", type=int, default=1)
+    p_plan = feat_sub.add_parser(
+        "plan", help="Print the dependency plan for a target (P4) without running.",
+    )
+    p_plan.add_argument("target")
 
     # --- status ---
     p_status = sub.add_parser("status", help="List kernels matching the configured prefix")
@@ -152,6 +191,72 @@ def _build_parser() -> argparse.ArgumentParser:
     p_clb.add_argument("--csv", action="store_true")
     p_clb.add_argument("--json", dest="json_output", action="store_true")
 
+    # --- submit (P3) ---
+    p_sub = sub.add_parser(
+        "submit", help="Submit a file to a competition (P3). Reads [competition] from kaggle.toml.",
+    )
+    p_sub.add_argument("--competition", default=None)
+    p_sub.add_argument("--file", type=Path, default=None)
+    p_sub.add_argument("--message", "-m", default=None)
+    p_sub.add_argument(
+        "--train", action="store_true",
+        help="Run [competition].train_command before submitting.",
+    )
+
+    # --- submissions (P3) ---
+    p_subs = sub.add_parser("submissions", help="Local history of competition submissions (P3).")
+    subs_sub = p_subs.add_subparsers(dest="subs_cmd", required=True, metavar="SUB_CMD")
+    p_subs_list = subs_sub.add_parser("list")
+    p_subs_list.add_argument("--competition", default=None)
+    p_subs_list.add_argument("--csv", action="store_true")
+    p_subs_list.add_argument("--json", dest="json_output", action="store_true")
+    p_subs_latest = subs_sub.add_parser("latest")
+    p_subs_latest.add_argument("competition", nargs="?")
+
+    # --- cache (P5) ---
+    p_cache = sub.add_parser("cache", help="Artifact cache (P5).")
+    cache_sub = p_cache.add_subparsers(dest="cache_cmd", required=True, metavar="CACHE_CMD")
+    p_cache_status = cache_sub.add_parser("status")
+    p_cache_status.add_argument("--json", dest="json_output", action="store_true")
+    p_cache_clear = cache_sub.add_parser("clear")
+    p_cache_clear.add_argument("branch", nargs="?")
+
+    # --- experiments (P6) ---
+    p_exp = sub.add_parser("experiments", help="Experiment tracking (P6).")
+    exp_sub = p_exp.add_subparsers(dest="exp_cmd", required=True, metavar="EXP_CMD")
+    p_exp_rec = exp_sub.add_parser("record")
+    p_exp_rec.add_argument("--id", default=None)
+    p_exp_rec.add_argument("--notes", default="")
+    p_exp_rec.add_argument("--submission-id", default=None)
+    p_exp_rec.add_argument("--score", type=float, default=None)
+    p_exp_rec.add_argument("--feature-branches", default=None)
+    p_exp_list = exp_sub.add_parser("list")
+    p_exp_list.add_argument("--csv", action="store_true")
+    p_exp_list.add_argument("--json", dest="json_output", action="store_true")
+    p_exp_show = exp_sub.add_parser("show")
+    p_exp_show.add_argument("exp_id")
+
+    # --- features (P7) ---
+    p_feats = sub.add_parser("features", help="Local feature registry (P7).")
+    feats_sub = p_feats.add_subparsers(dest="feats_cmd", required=True, metavar="FEAT_CMD")
+    p_feats_list = feats_sub.add_parser("list")
+    p_feats_list.add_argument("--csv", action="store_true")
+    p_feats_list.add_argument("--json", dest="json_output", action="store_true")
+    p_feats_show = feats_sub.add_parser("show")
+    p_feats_show.add_argument("name")
+
+    # --- lineage (P8) ---
+    p_lin = sub.add_parser("lineage", help="Dataset lineage (P8).")
+    lin_sub = p_lin.add_subparsers(dest="lin_cmd", required=True, metavar="LIN_CMD")
+    p_lin_show = lin_sub.add_parser("show")
+    p_lin_show.add_argument("feature")
+    p_lin_show.add_argument("--json", dest="json_output", action="store_true")
+    p_lin_add = lin_sub.add_parser("add-parent")
+    p_lin_add.add_argument("child")
+    p_lin_add.add_argument("parent")
+    p_lin_rm = lin_sub.add_parser("remove")
+    p_lin_rm.add_argument("feature")
+
     return parser
 
 
@@ -211,7 +316,38 @@ def main(argv: list[str] | None = None) -> int:
                 data_dataset=args.data_dataset,
                 features_dir=args.features_dir,
                 notebooks_dir=args.notebooks_dir,
+                parallel=getattr(args, "parallel", 1),
+                resume=getattr(args, "resume", False),
             )
+        if args.feat_cmd == "retry":
+            selector = args.selector or "failed"
+            return retry_cmd.cmd_retry(
+                cfg,
+                selector,
+                gpu=gpu,
+                timeout_sec=args.timeout,
+                parallel=getattr(args, "parallel", 1),
+            )
+        if args.feat_cmd == "resume":
+            branches = args.branches.split(",") if args.branches else None
+            return retry_cmd.cmd_resume(
+                cfg,
+                branches=branches,
+                gpu=gpu,
+                timeout_sec=args.timeout,
+                parallel=getattr(args, "parallel", 1),
+            )
+        if args.feat_cmd == "build":
+            return graph_cmd.cmd_feature_build(
+                cfg,
+                args.target,
+                gpu=gpu,
+                parallel=getattr(args, "parallel", 1),
+                timeout_sec=args.timeout,
+                data_dataset=args.data_dataset,
+            )
+        if args.feat_cmd == "plan":
+            return graph_cmd.cmd_feature_plan(cfg, args.target)
     if args.cmd == "status":
         return status_cmd.status(cfg, all_kernels=args.all, csv_output=args.csv)
     if args.cmd == "kernels":
@@ -260,5 +396,58 @@ def main(argv: list[str] | None = None) -> int:
                 args.competition, top=args.top,
                 csv_output=args.csv, json_output=args.json_output,
             )
+    if args.cmd == "submit":
+        return submissions_cmd.cmd_submit(
+            cfg,
+            competition=args.competition,
+            file=args.file,
+            message=args.message,
+            train=args.train,
+        )
+    if args.cmd == "submissions":
+        if args.subs_cmd == "list":
+            return submissions_cmd.cmd_submissions_list(
+                competition=args.competition,
+                csv_output=args.csv,
+                json_output=args.json_output,
+            )
+        if args.subs_cmd == "latest":
+            return submissions_cmd.cmd_submissions_latest(args.competition)
+    if args.cmd == "cache":
+        if args.cache_cmd == "status":
+            return cache_mod.cmd_cache_status(json_output=args.json_output)
+        if args.cache_cmd == "clear":
+            return cache_mod.cmd_cache_clear(args.branch)
+    if args.cmd == "experiments":
+        if args.exp_cmd == "record":
+            fbs = args.feature_branches.split(",") if args.feature_branches else None
+            return exp_cmd.cmd_experiments_record(
+                cfg,
+                id=args.id,
+                notes=args.notes,
+                submission_id=args.submission_id,
+                score=args.score,
+                feature_branches=fbs,
+            )
+        if args.exp_cmd == "list":
+            return exp_cmd.cmd_experiments_list(
+                csv_output=args.csv, json_output=args.json_output
+            )
+        if args.exp_cmd == "show":
+            return exp_cmd.cmd_experiments_show(args.exp_id)
+    if args.cmd == "features":
+        if args.feats_cmd == "list":
+            return features_cmd.cmd_features_list(
+                csv_output=args.csv, json_output=args.json_output
+            )
+        if args.feats_cmd == "show":
+            return features_cmd.cmd_features_show(args.name)
+    if args.cmd == "lineage":
+        if args.lin_cmd == "show":
+            return lineage_cmd.cmd_lineage(args.feature, json_output=args.json_output)
+        if args.lin_cmd == "add-parent":
+            return lineage_cmd.cmd_lineage_add_parent(args.child, args.parent)
+        if args.lin_cmd == "remove":
+            return lineage_cmd.cmd_lineage_remove(args.feature)
     parser.error(f"unhandled: {args}")
     return 2  # unreachable
