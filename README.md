@@ -16,6 +16,47 @@ KagglePipe manages Kaggle **workflows**.
 
 ---
 
+## Live Monitoring
+
+```bash
+kagglepipe monitor              # auto-refresh every 5s
+kagglepipe monitor --refresh 2  # tighter refresh
+kagglepipe monitor --once       # one-shot snapshot (CI / scripts)
+```
+
+The monitor is **read-only** — no forms, no editing, no mutations. It reads
+the existing `.kagglepipe/` state (runs, submissions, experiments, manifests)
+and renders a clean 2x3 dashboard that answers the questions every Kaggle
+competitor has:
+
+> What is running? What completed? What produced my best score? Are my artifacts fresh?
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│   KagglePipe Monitor    Project: demotest    User: holamigohello          │
+└─────────────────────────────────────────────────────────────────────────────┘
+┌───────── Active Jobs ─────────┐┌─ Pipeline Overview ─┐┌─ Latest Artifacts ──┐
+│branch             status      ││ --------- --------- ││ arti…   size   when │
+│baseline           ●DONE · t4 x2││    50.0% complete   ││ base…    4.3    59m │
+│user_features      ◐RUN · t4 x2││      Total  2       ││           MB    ago │
+│                               ││   Complete  1       ││                     │
+│                               ││    Running  1       ││                     │
+│                               ││     Failed  0       ││                     │
+└───────────────────────────────┘└─────────────────────┘└─────────────────────┘
+┌── Latest Submission ───┐┌─ ★ Best Submission Eve─┐┌── Experiment Summary ───┐
+│  Competi…  titanic-2…  ││     Score  0.87234     ││    Experiments  5       │
+│     Score  0.87234     ││      Rank  #15         ││      Manifests  4       │
+│      Rank  #15         ││  Git commit  a7d9c13   ││     Cache hits  0       │
+│  Submitt…  1h ago      ││   Experiment  exp-04   ││       Features  3       │
+└────────────────────────┘└────────────────────────┘└────────────────────────┘
+```
+
+Empty states are handled gracefully — a freshly-initialized project shows
+"No active jobs" / "No submissions recorded" / "No artifacts yet" panels
+that look just as good as the populated ones.
+
+---
+
 ## The Problem
 
 Most serious Kaggle competitors eventually end up with the same mess:

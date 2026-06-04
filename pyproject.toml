@@ -24,6 +24,7 @@ dependencies = [
     "tomli>=2.0; python_version<'3.11'",
     "pandas",
     "pyyaml",
+    "rich>=13.0",
 ]
 
 [project.optional-dependencies]

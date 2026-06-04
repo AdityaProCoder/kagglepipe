@@ -18,6 +18,7 @@ from kagglepipe.commands import (
     graph as graph_cmd,
     kernels as kernels_cmd,
     lineage as lineage_cmd,
+    monitor as monitor_cmd,
     retry as retry_cmd,
     src as src_cmd,
     status as status_cmd,
@@ -148,6 +149,24 @@ def _build_parser() -> argparse.ArgumentParser:
     # P10: pre-flight validation.
     p_val = sub.add_parser("validate", help="Pre-flight checks (P10).")
     p_val.add_argument("--json", dest="json_output", action="store_true")
+
+    # Read-only monitoring dashboard.
+    p_mon = sub.add_parser(
+        "monitor",
+        help="Read-only live dashboard of jobs, artifacts, and submissions.",
+    )
+    p_mon.add_argument(
+        "--refresh", type=int, default=5,
+        help="Refresh interval in seconds (default 5, min 1).",
+    )
+    p_mon.add_argument(
+        "--once", action="store_true",
+        help="Render a single snapshot and exit (for scripts/CI).",
+    )
+    p_mon.add_argument(
+        "--project-root", type=Path, default=None,
+        help="Project root to monitor (default: cwd).",
+    )
 
     # P12: template library.
     p_tpl = sub.add_parser("template", help="Project templates (P12).")
@@ -421,6 +440,12 @@ def main(argv: list[str] | None = None) -> int:
         return status_cmd.status(cfg, all_kernels=args.all, csv_output=args.csv)
     if args.cmd == "validate":
         return validate_cmd.cmd_validate(json_output=getattr(args, "json_output", False))
+    if args.cmd == "monitor":
+        return monitor_cmd.cmd_monitor(
+            refresh=getattr(args, "refresh", 5),
+            once=getattr(args, "once", False),
+            project_root=str(getattr(args, "project_root", None)) if getattr(args, "project_root", None) else None,
+        )
     if args.cmd == "template":
         if args.tpl_cmd == "list":
             return templates_cmd.cmd_template_list()
