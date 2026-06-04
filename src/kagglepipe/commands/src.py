@@ -24,13 +24,43 @@ def upload(
     version: int | None = None,
     slug: str | None = None,
     quiet: bool = False,
+    dry_run: bool = False,
 ) -> int:
-    """Build a tarball of the configured `source.include` and upload it."""
+    """Build a tarball of the configured `source.include` and upload it.
+
+    dry_run=True (P9) prints the plan and builds the tarball locally so
+    you can inspect size, but does not call the Kaggle API for upload.
+    """
     creds = credentials.load()
     root = (src_root or Path.cwd()).resolve()
     actual_slug = slug or resolve_template(cfg.source.src_dataset_slug, username=creds.username)
     if version is None:
-        version = kaggle_api.get_next_version(actual_slug)
+        if dry_run:
+            version = kaggle_api.get_next_version(actual_slug)
+        else:
+            version = kaggle_api.get_next_version(actual_slug)
+    if dry_run:
+        # Build tarball locally so the size can be reported, but don't push.
+        with tempfile.TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            tarball_path = tmp / "src.tar.gz"
+            tarball.build_tarball(
+                root,
+                tarball_path,
+                include=cfg.source.include,
+                exclude_dirs=cfg.source.exclude_dirs,
+                exclude_exts=cfg.source.exclude_exts,
+            )
+            size = tarball_path.stat().st_size if tarball_path.exists() else 0
+        print("[dry-run] kagglepipe src upload")
+        print(f"  source root       : {root}")
+        print(f"  include           : {cfg.source.include}")
+        print(f"  exclude_dirs      : {cfg.source.exclude_dirs}")
+        print(f"  exclude_exts      : {cfg.source.exclude_exts}")
+        print(f"  target dataset    : {actual_slug} v{version}")
+        print(f"  tarball size      : {size} bytes")
+        print("  (no Kaggle API calls will be made)")
+        return 0
     if not quiet:
         print(f"Packaging {root} -> {actual_slug} v{version}")
     with tempfile.TemporaryDirectory() as tmp_str:

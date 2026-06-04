@@ -299,19 +299,35 @@ Kaggle CLI is the **engine**. KagglePipe is the **vehicle**.
 
 ## Roadmap
 
-Planned features (contributions welcome):
+Workflow features shipped:
 
-- **Parallel branch execution** ✅ — `feature all --parallel 3` runs branches simultaneously
-- **Retry/resume failed runs** ✅ — `feature retry failed` / `feature all --resume`
+- **Parallel branch execution** ✅ — `feature all --parallel 3`
+- **Retry/resume failed runs** ✅ — `feature retry failed` / `--resume`
 - **Submission automation** ✅ — `kagglepipe submit` + `submissions list/latest`
-- **Dependency graphs** ✅ — `feature build <target>` resolves a DAG from `[feature].dependencies`
-- **Artifact caching** ✅ — `cache status` / `cache clear` skip branches whose inputs haven't changed
-- **Experiment tracking** ✅ — `experiments record/list/show` ties git + datasets + features + submissions together
-- **Feature registry** ✅ — `features list/show` records every generated feature locally
-- **Dataset lineage** ✅ — `lineage show <feature>` walks the upstream chain
-- Cost tracking and per-kernel GPU-hour attribution
-- Remote caching across machines (S3-backed)
-- Local first-class re-execution of kernels without re-pushing
+- **Dependency graphs** ✅ — `feature build <target>`
+- **Artifact caching** ✅ — `cache status` / `cache clear`
+- **Experiment tracking** ✅ — `experiments record/list/show`
+- **Feature registry** ✅ — `features list/show`
+- **Dataset lineage** ✅ — `lineage show <feature>`
+- **Dry-run mode** ✅ — `feature run --dry-run` / `src upload --dry-run`
+- **Pre-flight validation** ✅ — `kagglepipe validate`
+- **Leaderboard tracking** ✅ — `submissions watch` / `leaderboard latest`
+- **Submission provenance** ✅ — `submissions best` / `submissions show <id>` (P11.5)
+- **Project templates** ✅ — `template init tabular|cv|nlp`
+- **Strong run manifests** ✅ — every run writes a JSON manifest to `.kagglepipe/manifests/`
+- **Reproducibility bundles** ✅ — `run export <branch>` / `run reproduce <bundle.tar.gz>`
+
+Roadmap for v1.0 (no more major features, focus on adoption):
+
+- PyPI release
+- Screencast / GIF demo
+- Bug fixes from real-user feedback
+- Performance improvements
+- Better error messages
+- More template types (recsys, time-series, RL)
+
+The goal is no longer more features. The goal is adoption, reliability, and
+becoming the standard workflow tool for serious Kaggle users.
 
 ---
 
@@ -332,9 +348,12 @@ download cycle, it would significantly improve first-impression conversion.
 | `kagglepipe login` | Bootstrap `~/.kaggle/kaggle.json` |
 | `kagglepipe config init` | Scaffold `kaggle.toml` |
 | `kagglepipe config show [--json]` | Print effective config |
-| `kagglepipe src upload [--version N]` | Package & push source dataset (auto-versions) |
-| `kagglepipe feature run <branch>` | Render notebook → push → poll → download artifact |
-| `kagglepipe feature all [--parallel N] [--resume]` | Run all configured branches; `N>=2` for concurrency |
+| `kagglepipe validate` | Pre-flight checks (creds, config, deps, paths, notebook) (P10) |
+| `kagglepipe template init <type>` | Scaffold a starter project (tabular/cv/nlp) (P12) |
+| `kagglepipe template list` | List available templates |
+| `kagglepipe src upload [--version N] [--dry-run]` | Package & push source dataset |
+| `kagglepipe feature run <branch> [--dry-run]` | Render notebook → push → poll → download |
+| `kagglepipe feature all [--parallel N] [--resume]` | Run all configured branches; N>=2 for concurrency |
 | `kagglepipe feature retry [selector]` | Re-run failed/error/timeout/all branches (P2) |
 | `kagglepipe feature resume` | Resume, skipping branches that already completed (P2) |
 | `kagglepipe feature build <target>` | Run a feature plus its declared dependencies (P4) |
@@ -353,11 +372,14 @@ download cycle, it would significantly improve first-impression conversion.
 | `kagglepipe competitions submit <comp> <file> -m "msg"` | Submit to a competition |
 | `kagglepipe competitions leaderboard <comp>` | Competition leaderboard |
 | `kagglepipe submit [--competition X] [--file f] [--train]` | Submit a file (P3) |
-| `kagglepipe submissions list\|latest` | Local submission history (P3) |
+| `kagglepipe submissions list\|latest\|watch\|best\|show` | Submission history + provenance (P3/P11/P11.5) |
+| `kagglepipe leaderboard latest` | Top-of-leaderboard helper (P11) |
 | `kagglepipe cache status\|clear` | Artifact cache (P5) |
 | `kagglepipe experiments record\|list\|show` | Experiment tracking (P6) |
 | `kagglepipe features list\|show` | Feature registry (P7) |
 | `kagglepipe lineage show\|add-parent\|remove` | Dataset lineage (P8) |
+| `kagglepipe run export <branch\|manifest>` | Export a run as a portable tarball (P14) |
+| `kagglepipe run reproduce <bundle.tar.gz>` | Reproduce a run from a bundle (P14) |
 
 Run `kagglepipe <cmd> --help` for all flags.
 

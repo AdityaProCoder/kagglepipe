@@ -16,6 +16,9 @@ from kagglepipe import credentials, kaggle_api, notebook as nb_mod, runner, slug
 from kagglepipe.config import Config
 from kagglepipe.polling import poll_kernel_status
 from kagglepipe.slug import normalize_slug, resolve_template
+from kagglepipe.state import RunRecord, RunStore, state_dir
+from kagglepipe.manifest import write_manifest
+from kagglepipe.provenance import build_provenance, git_commit, git_dirty, hash_file
 
 
 # Map CLI token -> Kaggle kernel metadata value. Kaggle expects "t4 x2".
@@ -45,8 +48,14 @@ def run_feature(
     notebooks_dir: Path | None = None,
     no_download: bool = False,
     quiet: bool = False,
+    dry_run: bool = False,
 ) -> int:
-    """Render a notebook, push it as a kernel, poll, download the output."""
+    """Render a notebook, push it as a kernel, poll, download the output.
+
+    dry_run=True (P9) prints the plan (datasets, notebook path, kernel slug,
+    GPU, cache status, expected artifact) without actually invoking the
+    kaggle CLI for any state-changing operation.
+    """
     branch = validate_branch(cfg, branch)
     creds = credentials.load()
     src_slug = src_dataset or resolve_template(
@@ -58,7 +67,10 @@ def run_feature(
         else ""
     )
     if src_version is None:
-        src_version = kaggle_api.get_next_version(src_slug)
+        if dry_run:
+            src_version = "?"
+        else:
+            src_version = kaggle_api.get_next_version(src_slug)
     kernel_slug = resolve_template(
         cfg.feature.kernel_slug_template,
         username=creds.username,
@@ -69,7 +81,7 @@ def run_feature(
         cfg.feature.notebook_template,
         branch=branch,
         src_dataset_slug=src_slug,
-        src_version=src_version,
+        src_version=src_version if isinstance(src_version, int) else 1,
         src_mount=slug.resolve_template(
             cfg.feature.src_mount, username=creds.username, dataset=src_slug.split("/", 1)[-1]
         ),
@@ -85,6 +97,33 @@ def run_feature(
         notebook_command=cfg.feature.notebook_command,
         gpu=gpu_value,
     )
+
+    # P5 cache check (P9 dry-run also reports this).
+    from kagglepipe.cache import CacheStore
+    from kagglepipe.cache import config_hash_for_branch as _cfg_hash_for_branch
+    cache_store = CacheStore()
+    cached = cache_store.get(branch)
+    cache_status = "MISS"
+    if cached is not None and cfg.feature.cache:
+        cache_status = "HIT (would skip)"
+
+    if dry_run:
+        _print_dry_run_plan(
+            branch=branch,
+            src_slug=src_slug,
+            src_version=src_version,
+            data_slug=data_slug,
+            kernel_slug=kernel_slug,
+            gpu_value=gpu_value,
+            nb=nb,
+            cfg=cfg,
+            cache_status=cache_status,
+            cached=cached,
+            features_dir=features_dir or (Path.cwd() / cfg.paths.features_dir),
+            notebooks_dir=notebooks_dir or (Path.cwd() / cfg.paths.notebooks_dir),
+        )
+        return 0
+
     nb_dir = (notebooks_dir or Path.cwd() / cfg.paths.notebooks_dir).resolve()
     nb_dir.mkdir(parents=True, exist_ok=True)
     nb_path = nb_dir / f"extract_{normalize_slug(branch)}.ipynb"
@@ -106,6 +145,12 @@ def run_feature(
     (nb_dir / "kernel-metadata.json").write_text(
         json.dumps(kernel_md, indent=2), encoding="utf-8"
     )
+
+    # P13: capture provenance now (in case the run fails later, we still
+    # have a partial manifest).
+    from kagglepipe.provenance import build_provenance, git_commit, git_dirty, hash_file
+    provenance = build_provenance()
+    notebook_hash = hash_file(nb_path)
 
     result = runner.run(["kernels", "push", "-p", str(nb_dir)])
     if result.returncode != 0:
@@ -130,6 +175,7 @@ def run_feature(
         return 0
 
     out_target_dir = (features_dir or Path.cwd() / cfg.paths.features_dir).resolve()
+    artifact_path: str | None = None
     with tempfile.TemporaryDirectory() as tmp_str:
         tmp = Path(tmp_str)
         kaggle_api.download_kernel_output(kernel_slug, tmp)
@@ -142,9 +188,73 @@ def run_feature(
         out_target_dir.mkdir(parents=True, exist_ok=True)
         dest = out_target_dir / f"{normalize_slug(branch)}{src_artifact.suffix}"
         kaggle_api.copy_artifact(src_artifact, dest)
+        artifact_path = str(dest)
         if not quiet:
             print(f"Downloaded: {dest}")
+
+    # P13: write the strong run manifest.
+    rec = RunRecord(
+        branch=branch,
+        kernel_slug=kernel_slug,
+        state="complete",
+        artifact_path=artifact_path,
+        finished_at=time.time(),
+        config_hash=_cfg_hash_for_branch(cfg, branch),
+        git_commit=git_commit(),
+        git_dirty=git_dirty(),
+        gpu=gpu_value,
+        src_slug=src_slug,
+        src_version=src_version if isinstance(src_version, int) else None,
+        dataset_versions=provenance.get("dataset_versions", {}),
+        notebook_hash=notebook_hash,
+    )
+    write_manifest(rec)
     return 0
+
+
+def _ext_from_glob(s: str) -> str:
+    """Best-effort extension extraction from a glob pattern."""
+    import re
+    m = re.search(r"\.([A-Za-z0-9]+)$", s)
+    return f".{m.group(1)}" if m else ""
+
+
+def _print_dry_run_plan(
+    *,
+    branch: str,
+    src_slug: str,
+    src_version,
+    data_slug: str,
+    kernel_slug: str,
+    gpu_value: str | None,
+    nb: dict,
+    cfg: Config,
+    cache_status: str,
+    cached,
+    features_dir: Path,
+    notebooks_dir: Path,
+) -> None:
+    """Pretty-print the dry-run plan for `feature run`."""
+    print("[dry-run] kagglepipe feature run")
+    print(f"  branch          : {branch}")
+    print(f"  source dataset  : {src_slug} v{src_version}")
+    if data_slug:
+        print(f"  data dataset    : {data_slug}")
+    else:
+        print("  data dataset    : (none)")
+    print(f"  kernel slug     : {kernel_slug}")
+    print(f"  gpu             : {gpu_value or 'none'}")
+    print(f"  notebook path   : {notebooks_dir / f'extract_{branch}.ipynb'}")
+    print(f"  features dir    : {features_dir}")
+    expected = features_dir / f"{branch}{_ext_from_glob(cfg.feature.output_glob)}"
+    print(f"  expected output : {expected}")
+    print(f"  cache           : {cache_status}")
+    if cached is not None:
+        print(f"  cached artifact : {cached.artifact_path}")
+    print(f"  notebook cells  : {len(nb.get('cells', []))}")
+    sources = nb.get("metadata", {}).get("dataset_sources", [])
+    print(f"  dataset_sources : {sources}")
+    print("  (no Kaggle API calls will be made)")
 
 
 def run_all(

@@ -58,7 +58,11 @@ def _read_json(path: Path) -> Any:
 
 @dataclass
 class RunRecord:
-    """One attempt at running a feature branch."""
+    """One attempt at running a feature branch (P13 strong manifest).
+
+    Captures every input that determined the output artifact, so any
+    historical run is fully reproducible from this record alone.
+    """
 
     branch: str
     kernel_slug: str
@@ -69,13 +73,24 @@ class RunRecord:
     error: str | None = None
     config_hash: str | None = None  # P5
     skipped: bool = False  # P5: hit cache, did not actually run
+    # P13: extra provenance
+    git_commit: str | None = None
+    git_dirty: bool | None = None
+    gpu: str | None = None
+    src_slug: str | None = None
+    src_version: int | None = None
+    dataset_versions: dict[str, int] = field(default_factory=dict)
+    notebook_hash: str | None = None
+    manifest_path: str | None = None  # P13: where the on-disk manifest was written
 
     def to_dict(self) -> dict:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, d: dict) -> "RunRecord":
-        return cls(**d)
+        # Backward-compat: ignore unknown fields from older records.
+        known = {f.name for f in __import__("dataclasses").fields(cls)}
+        return cls(**{k: v for k, v in d.items() if k in known})
 
 
 class RunStore:
@@ -159,14 +174,24 @@ class SubmissionRecord:
     submitted_at: float = field(default_factory=time.time)
     submission_id: str | None = None  # filled in after upload if Kaggle returns one
     score: float | None = None
+    rank: int | None = None  # P11: position on the leaderboard when known
     status: str = "submitted"  # "submitted" | "scored" | "failed"
+    # P11.5: submission provenance — answers "what code produced this score?"
+    experiment_id: str | None = None
+    git_commit: str | None = None
+    git_dirty: bool | None = None
+    feature_branches: list[str] = field(default_factory=list)
+    dataset_versions: dict[str, int] = field(default_factory=dict)
+    artifact_hashes: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, d: dict) -> "SubmissionRecord":
-        return cls(**d)
+        # Backward-compat: older records may not have the P11.5 fields.
+        known = {f.name for f in __import__("dataclasses").fields(cls)}
+        return cls(**{k: v for k, v in d.items() if k in known})
 
 
 class SubmissionStore:

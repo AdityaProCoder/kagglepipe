@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from kagglepipe import __version__, cache as cache_mod, config as cfg_mod
+from kagglepipe import __version__, bundle as bundle_mod, cache as cache_mod, config as cfg_mod
 from kagglepipe.commands import (
     auth as auth_cmd,
     competitions as comp_cmd,
@@ -22,6 +22,8 @@ from kagglepipe.commands import (
     src as src_cmd,
     status as status_cmd,
     submissions as submissions_cmd,
+    templates as templates_cmd,
+    validate as validate_cmd,
 )
 
 
@@ -71,6 +73,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p_up.add_argument("--version", type=int, default=None)
     p_up.add_argument("--src-root", type=Path, default=None)
     p_up.add_argument("--slug", default=None)
+    p_up.add_argument(
+        "--dry-run", action="store_true",
+        help="P9: print the plan and build the tarball locally, but do not upload.",
+    )
 
     # --- feature ---
     p_feat = sub.add_parser("feature", help="Run feature branches on Kaggle")
@@ -85,6 +91,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--features-dir", type=Path, default=None)
     p_run.add_argument("--notebooks-dir", type=Path, default=None)
     p_run.add_argument("--no-download", action="store_true")
+    p_run.add_argument(
+        "--dry-run", action="store_true",
+        help="P9: print the plan without rendering/pushing/polling/downloading.",
+    )
     p_all = feat_sub.add_parser("all", help="Run heavy branches sequentially")
     p_all.add_argument("--branches", default=None, help="Comma-separated override")
     p_all.add_argument("--gpu", default=None, choices=["p100", "t4x2", "none"])
@@ -130,6 +140,35 @@ def _build_parser() -> argparse.ArgumentParser:
     p_status = sub.add_parser("status", help="List kernels matching the configured prefix")
     p_status.add_argument("--all", action="store_true", help="Show all my kernels")
     p_status.add_argument("--csv", action="store_true")
+
+    # P10: pre-flight validation.
+    p_val = sub.add_parser("validate", help="Pre-flight checks (P10).")
+    p_val.add_argument("--json", dest="json_output", action="store_true")
+
+    # P12: template library.
+    p_tpl = sub.add_parser("template", help="Project templates (P12).")
+    tpl_sub = p_tpl.add_subparsers(dest="tpl_cmd", required=True, metavar="TPL_CMD")
+    p_tpl_list = tpl_sub.add_parser("list")
+    p_tpl_init = tpl_sub.add_parser("init", help="Scaffold a project from a template.")
+    p_tpl_init.add_argument("template", help="Template name (tabular|cv|nlp)")
+    p_tpl_init.add_argument("--name", default=None, help="Project name (default: dir basename)")
+    p_tpl_init.add_argument("--root", type=Path, default=None, help="Target dir (default: cwd)")
+    p_tpl_init.add_argument("--force", action="store_true", help="Overwrite existing files")
+
+    # P14: reproducibility bundles.
+    p_run = sub.add_parser("run", help="Run reproducibility (P14).")
+    run_sub = p_run.add_subparsers(dest="run_cmd", required=True, metavar="RUN_CMD")
+    p_run_export = run_sub.add_parser("export", help="Export a run as a portable tarball.")
+    p_run_export.add_argument("target", help="Branch name or path to a manifest.json")
+    p_run_export.add_argument("--out", type=Path, default=None)
+    p_run_export.add_argument("--no-artifacts", action="store_true",
+                              help="Don't include the artifact file in the bundle.")
+    p_run_reproduce = run_sub.add_parser("reproduce", help="Reproduce a run from a bundle.")
+    p_run_reproduce.add_argument("bundle", type=Path)
+    p_run_reproduce.add_argument(
+        "--no-dry-run", action="store_true",
+        help="Actually re-execute (default: print the plan only).",
+    )
 
     # --- kernels ---
     p_kern = sub.add_parser("kernels", help="Kernel operations")
@@ -202,6 +241,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--train", action="store_true",
         help="Run [competition].train_command before submitting.",
     )
+    p_sub.add_argument(
+        "--experiment-id", default=None,
+        help="Link this submission to an experiment id (P11.5).",
+    )
 
     # --- submissions (P3) ---
     p_subs = sub.add_parser("submissions", help="Local history of competition submissions (P3).")
@@ -212,6 +255,26 @@ def _build_parser() -> argparse.ArgumentParser:
     p_subs_list.add_argument("--json", dest="json_output", action="store_true")
     p_subs_latest = subs_sub.add_parser("latest")
     p_subs_latest.add_argument("competition", nargs="?")
+    p_subs_watch = subs_sub.add_parser("watch", help="Poll for new submission scores (P11).")
+    p_subs_watch.add_argument("competition")
+    p_subs_watch.add_argument("--current", default=None)
+    p_subs_watch.add_argument("--poll-sec", type=int, default=60)
+    p_subs_watch.add_argument("--max-wait-sec", type=int, default=1800)
+    p_subs_watch.add_argument("--json", dest="json_output", action="store_true")
+    p_subs_best = subs_sub.add_parser("best", help="Show the best-scoring submission with full provenance (P11.5).")
+    p_subs_best.add_argument("competition", nargs="?")
+    p_subs_best.add_argument("--json", dest="json_output", action="store_true")
+    p_subs_show = subs_sub.add_parser("show", help="Show full provenance for a submission id (P11.5).")
+    p_subs_show.add_argument("submission_id")
+    p_subs_show.add_argument("--json", dest="json_output", action="store_true")
+
+    # --- leaderboard (P11) ---
+    p_lb_top = sub.add_parser("leaderboard", help="Competition leaderboard helpers (P11).")
+    lb_sub = p_lb_top.add_subparsers(dest="lb_cmd", required=True, metavar="LB_CMD")
+    p_lb_latest = lb_sub.add_parser("latest")
+    p_lb_latest.add_argument("competition")
+    p_lb_latest.add_argument("--top", type=int, default=20)
+    p_lb_latest.add_argument("--json", dest="json_output", action="store_true")
 
     # --- cache (P5) ---
     p_cache = sub.add_parser("cache", help="Artifact cache (P5).")
@@ -290,6 +353,7 @@ def main(argv: list[str] | None = None) -> int:
                 src_root=args.src_root,
                 version=args.version,
                 slug=args.slug,
+                dry_run=getattr(args, "dry_run", False),
             )
     if args.cmd == "feature":
         gpu = args.gpu or cfg.feature.default_gpu
@@ -305,6 +369,7 @@ def main(argv: list[str] | None = None) -> int:
                 features_dir=args.features_dir,
                 notebooks_dir=args.notebooks_dir,
                 no_download=args.no_download,
+                dry_run=getattr(args, "dry_run", False),
             )
         if args.feat_cmd == "all":
             branches = args.branches.split(",") if args.branches else None
@@ -350,6 +415,30 @@ def main(argv: list[str] | None = None) -> int:
             return graph_cmd.cmd_feature_plan(cfg, args.target)
     if args.cmd == "status":
         return status_cmd.status(cfg, all_kernels=args.all, csv_output=args.csv)
+    if args.cmd == "validate":
+        return validate_cmd.cmd_validate(json_output=getattr(args, "json_output", False))
+    if args.cmd == "template":
+        if args.tpl_cmd == "list":
+            return templates_cmd.cmd_template_list()
+        if args.tpl_cmd == "init":
+            return templates_cmd.cmd_template_init(
+                args.template,
+                project_name=args.name,
+                root=args.root,
+                force=args.force,
+            )
+    if args.cmd == "run":
+        if args.run_cmd == "export":
+            return bundle_mod.cmd_run_export(
+                args.target,
+                out=args.out,
+                include_artifacts=not args.no_artifacts,
+            )
+        if args.run_cmd == "reproduce":
+            return bundle_mod.cmd_run_reproduce(
+                args.bundle,
+                dry_run=not args.no_dry_run,
+            )
     if args.cmd == "kernels":
         if args.kern_cmd == "list":
             return kernels_cmd.list_kernels(
@@ -403,6 +492,7 @@ def main(argv: list[str] | None = None) -> int:
             file=args.file,
             message=args.message,
             train=args.train,
+            experiment_id=args.experiment_id,
         )
     if args.cmd == "submissions":
         if args.subs_cmd == "list":
@@ -413,6 +503,27 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.subs_cmd == "latest":
             return submissions_cmd.cmd_submissions_latest(args.competition)
+        if args.subs_cmd == "watch":
+            return submissions_cmd.cmd_submissions_watch(
+                args.competition,
+                current=args.current,
+                poll_sec=args.poll_sec,
+                max_wait_sec=args.max_wait_sec,
+                json_output=args.json_output,
+            )
+        if args.subs_cmd == "best":
+            return submissions_cmd.cmd_submissions_best(
+                args.competition, json_output=args.json_output
+            )
+        if args.subs_cmd == "show":
+            return submissions_cmd.cmd_submissions_show(
+                args.submission_id, json_output=args.json_output
+            )
+    if args.cmd == "leaderboard":
+        if args.lb_cmd == "latest":
+            return submissions_cmd.cmd_leaderboard_latest(
+                args.competition, top=args.top, json_output=args.json_output
+            )
     if args.cmd == "cache":
         if args.cache_cmd == "status":
             return cache_mod.cmd_cache_status(json_output=args.json_output)
