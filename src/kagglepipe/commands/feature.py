@@ -71,10 +71,14 @@ def run_feature(
             src_version = "?"
         else:
             src_version = kaggle_api.get_next_version(src_slug)
+    # resolve_template handles {username} and {branch}. normalize_slug is only
+    # for the branch segment so the template placeholder {branch} is preserved.
+    kernel_slug_raw = cfg.feature.kernel_slug_template.replace(
+        "{branch}", normalize_slug(branch)
+    )
     kernel_slug = resolve_template(
-        cfg.feature.kernel_slug_template,
+        kernel_slug_raw,
         username=creds.username,
-        branch=normalize_slug(branch),
     )
     gpu_value = GPU_INSTANCE_MAP.get(gpu, gpu)
     nb = nb_mod.render(
@@ -94,7 +98,12 @@ def run_feature(
             else ""
         ),
         out_dir=cfg.feature.out_dir,
-        notebook_command=cfg.feature.notebook_command,
+        # Resolve {username} (and $name if present) in notebook_command
+        # so the rendered notebook contains the actual resolved paths.
+        notebook_command=resolve_template(
+            cfg.feature.notebook_command,
+            username=creds.username,
+        ).replace("{branch}", branch),
         gpu=gpu_value,
     )
 

@@ -7,13 +7,16 @@ so users can fix config / credentials / templates before launching a real
 Categories checked:
   1. Credentials (kaggle.json or env vars loadable)
   2. Config schema (kaggle.toml parses, defaults don't collide)
-  3. Dependency graph (no cycles, all referenced branches known)
-  4. Notebook template (renders without error)
-  5. Source paths (every `source.include` entry exists)
-  6. Output glob (parses, has a recognizable extension)
-  7. Dataset configuration (data.dataset_slug, source.src_dataset_slug are well-formed)
-  8. GPU setting (one of the supported values)
-  9. State directory (writable)
+  3. Source dataset existence (src_dataset_slug exists on Kaggle)
+  4. Branch configuration (branches must not be empty)
+  5. Dependency graph (no cycles, all referenced branches known)
+  6. Notebook template (renders without error)
+  7. Source paths (every `source.include` entry exists)
+  8. Output glob (parses, has a recognizable extension)
+  9. Dataset configuration (data.dataset_slug, source.src_dataset_slug are well-formed)
+  10. GPU setting (one of the supported values)
+  11. State directory (writable)
+  12. Competition configuration (if competition.slug is set)
 """
 
 from __future__ import annotations
@@ -23,7 +26,7 @@ import sys
 from pathlib import Path
 from typing import Callable
 
-from kagglepipe import credentials, notebook as nb_mod, slug
+from kagglepipe import credentials, kaggle_api, notebook as nb_mod, runner, slug
 from kagglepipe.config import Config, load
 from kagglepipe.state import state_dir
 
@@ -143,6 +146,82 @@ def _check_dataset_slugs(cfg: Config) -> list[str]:
     return issues
 
 
+def _check_branches(cfg: Config) -> list[str]:
+    """Fail if branches is empty — nothing can be run."""
+    issues: list[str] = []
+    if not cfg.feature.branches:
+        issues.append(
+            "feature.branches is empty. "
+            "Add branches to [feature] in kaggle.toml, e.g.:\n"
+            "  branches = [\"baseline\", \"user_features\"]"
+        )
+    return issues
+
+
+def _check_src_dataset_exists(cfg: Config, username: str) -> list[str]:
+    """Verify src_dataset_slug actually exists on the Kaggle account.
+
+    Fails validation only if the dataset is definitively absent.
+    If the API call itself fails (network, auth), this check is skipped
+    so transient issues don't block validation.
+    """
+    issues: list[str] = []
+    src = cfg.source.src_dataset_slug
+    if not src:
+        return issues
+    slug_str = slug.resolve_template(src, username=username)
+    result = runner.run(["datasets", "list", "--user", username, "--csv"])
+    # If the API call itself failed, skip this check rather than block
+    # the user on a potentially transient issue (auth, network, rate-limit).
+    if result.returncode != 0:
+        return issues
+    refs: set[str] = set()
+    for line in result.stdout.splitlines()[1:]:
+        parts = line.split(",")
+        if parts:
+            refs.add(parts[0].strip('"'))
+    if slug_str not in refs:
+        issues.append(
+            f"source dataset {slug_str!r} not found on Kaggle. "
+            f"Run `kagglepipe src upload` first, or check source.src_dataset_slug in kaggle.toml."
+        )
+    return issues
+
+
+def _check_competition(cfg: Config) -> list[str]:
+    """If competition is configured, validate its required fields."""
+    issues: list[str] = []
+    comp = cfg.competition
+    if not comp or not comp.get("slug"):
+        return issues
+    slug_str = comp.get("slug", "")
+    if not slug_str:
+        issues.append("competition.slug is empty")
+        return issues
+    # Verify the competition exists.
+    result = runner.run(["competitions", "list", "--csv"])
+    known: set[str] = set()
+    for line in result.stdout.splitlines()[1:]:
+        parts = line.split(",")
+        if parts:
+            # URL column: https://www.kaggle.com/competitions/slug
+            url = parts[0].strip('"')
+            if "/competitions/" in url:
+                known.add(url.rsplit("/", 1)[-1])
+    if slug_str not in known:
+        issues.append(
+            f"competition {slug_str!r} not found. "
+            f"Check [competition].slug in kaggle.toml."
+        )
+    sub_path = comp.get("submission_path", "")
+    if not sub_path:
+        issues.append(
+            "competition.submission_path is empty. "
+            "Set a path like 'submission.csv' in kaggle.toml."
+        )
+    return issues
+
+
 def cmd_validate(*, json_output: bool = False) -> int:
     """Run all pre-flight checks. Returns 0 if everything passes, 1 otherwise."""
     cfg = load()
@@ -165,12 +244,15 @@ def cmd_validate(*, json_output: bool = False) -> int:
 
     if creds is not None:
         issues.append(("paths", _check_paths(cfg, root)))
+        issues.append(("branches", _check_branches(cfg)))
+        issues.append(("src_dataset_exists", _check_src_dataset_exists(cfg, username)))
         issues.append(("output_glob", _check_output_glob(cfg)))
         issues.append(("gpu", _check_gpu(cfg)))
         issues.append(("dependency_graph", _check_dependency_graph(cfg)))
         issues.append(("notebook_template", _check_notebook_template(cfg, username, src_slug, data_slug)))
         issues.append(("state_dir", _check_state_dir()))
         issues.append(("dataset_slugs", _check_dataset_slugs(cfg)))
+        issues.append(("competition", _check_competition(cfg)))
 
     if json_output:
         import json as _json

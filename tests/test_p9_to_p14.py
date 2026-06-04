@@ -71,8 +71,10 @@ def test_src_upload_dry_run_prints_plan(tmp_path, monkeypatch, fake_creds, capsy
 # ---------------- P10: validate ----------------
 
 
-def test_validate_passes(tmp_path, monkeypatch, fake_creds, capsys) -> None:
+def test_validate_passes(tmp_path, monkeypatch, fake_creds, fake_run, capsys) -> None:
     monkeypatch.chdir(tmp_path)
+    # Mock Kaggle API responses so validation runs without real credentials.
+    fake_run(returncode=0, stdout='ref\n"testuser/itest-src"')
     (tmp_path / "scripts").mkdir()
     (tmp_path / "scripts" / "run.py").write_text("print(1)")
     (tmp_path / "configs").mkdir()

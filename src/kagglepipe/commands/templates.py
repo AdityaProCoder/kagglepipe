@@ -1,4 +1,4 @@
-"""Template library (P12).
+﻿"""Template library (P12).
 
 `kagglepipe template init <type>` scaffolds a starter project for common
 Kaggle competition archetypes:
@@ -39,30 +39,30 @@ _TEMPLATES: dict[str, dict[str, str]] = {
     "tabular": {
         "kaggle.toml": '''\
             [project]
-            name = "{name}"
+            name = "$name"
 
             [source]
-            include = ["src", "scripts", "configs", "pyproject.toml", "README.md"]
+            include = ["scripts", "configs", "README.md"]
             exclude_dirs = [".venv", "data", "models", ".git", "__pycache__",
                             ".pytest_cache", ".ruff_cache", "kaggle_notebooks",
                             "submissions"]
             exclude_exts = [".parquet", ".lgb", ".pt", ".bin"]
-            src_dataset_slug = "{{username}}/{name}-src"
+            src_dataset_slug = "{username}/$name-src"
 
             [data]
-            dataset_slug = "{{username}}/{name}-data"
+            dataset_slug = "{username}/$name-data"
 
             [feature]
             branches = ["baseline", "user_features"]
             heavy_branches = ["user_features"]
             default_gpu = "none"
-            kernel_slug_template = "{{username}}/{name}-{{branch}}"
-            kernel_title_prefix = "{name}"
-            notebook_command = "python scripts/run.py --config configs/features/{{branch}}.yaml --data-root /kaggle/input/datasets/{{username}}/{name}-data --out-dir /kaggle/working/features"
-            data_mount = "/kaggle/input/datasets/{{username}}/{name}-data"
-            src_mount = "/kaggle/input/datasets/{{username}}/{name}-src"
+            kernel_slug_template = "{username}/$name-{branch}"
+            kernel_title_prefix = "$name"
+            notebook_command = "python scripts/run.py --config configs/features/{{branch}}.yaml --data-root /kaggle/input/datasets/{username}/$name-data --out-dir /kaggle/working/features"
+            data_mount = "/kaggle/input/datasets/{username}/$name-data"
+            src_mount = "/kaggle/input/datasets/{username}/$name-src"
             out_dir = "/kaggle/working/features"
-            output_glob = "{{branch}}.parquet"
+            output_glob = "{branch}.parquet"
             default_timeout_sec = 1800
             poll_interval_sec = 30
 
@@ -121,7 +121,7 @@ _TEMPLATES: dict[str, dict[str, str]] = {
               - user_aggregations
             ''',
         "README.md": '''\
-            # {name}
+            # $name
 
             Tabular Kaggle project scaffolded with `kagglepipe template init tabular`.
 
@@ -138,30 +138,30 @@ _TEMPLATES: dict[str, dict[str, str]] = {
     "cv": {
         "kaggle.toml": '''\
             [project]
-            name = "{name}"
+            name = "$name"
 
             [source]
-            include = ["src", "scripts", "configs", "pyproject.toml", "README.md"]
+            include = ["scripts", "configs", "README.md"]
             exclude_dirs = [".venv", "data", "models", ".git", "__pycache__",
                             ".pytest_cache", ".ruff_cache", "kaggle_notebooks",
                             "submissions"]
             exclude_exts = [".parquet", ".pt", ".bin"]
-            src_dataset_slug = "{{username}}/{name}-src"
+            src_dataset_slug = "{username}/$name-src"
 
             [data]
-            dataset_slug = "{{username}}/{name}-data"
+            dataset_slug = "{username}/$name-data"
 
             [feature]
             branches = ["baseline", "dinov3", "siglip"]
             heavy_branches = ["dinov3", "siglip"]
             default_gpu = "t4x2"
-            kernel_slug_template = "{{username}}/{name}-{{branch}}"
-            kernel_title_prefix = "{name}"
-            notebook_command = "python scripts/extract_features.py --config configs/features/{{branch}}.yaml --data-root /kaggle/input/datasets/{{username}}/{name}-data --out-dir /kaggle/working/features"
-            data_mount = "/kaggle/input/datasets/{{username}}/{name}-data"
-            src_mount = "/kaggle/input/datasets/{{username}}/{name}-src"
+            kernel_slug_template = "{username}/$name-{branch}"
+            kernel_title_prefix = "$name"
+            notebook_command = "python scripts/extract_features.py --config configs/features/{{branch}}.yaml --data-root /kaggle/input/datasets/{username}/$name-data --out-dir /kaggle/working/features"
+            data_mount = "/kaggle/input/datasets/{username}/$name-data"
+            src_mount = "/kaggle/input/datasets/{username}/$name-src"
             out_dir = "/kaggle/working/features"
-            output_glob = "{{branch}}.parquet"
+            output_glob = "{branch}.parquet"
             default_timeout_sec = 3600
             poll_interval_sec = 60
 
@@ -224,7 +224,7 @@ _TEMPLATES: dict[str, dict[str, str]] = {
             embedding_dim: 768
             ''',
         "README.md": '''\
-            # {name}
+            # $name
 
             Computer-vision Kaggle project scaffolded with `kagglepipe template init cv`.
 
@@ -240,30 +240,30 @@ _TEMPLATES: dict[str, dict[str, str]] = {
     "nlp": {
         "kaggle.toml": '''\
             [project]
-            name = "{name}"
+            name = "$name"
 
             [source]
-            include = ["src", "scripts", "configs", "pyproject.toml", "README.md"]
+            include = ["scripts", "configs", "README.md"]
             exclude_dirs = [".venv", "data", "models", ".git", "__pycache__",
                             ".pytest_cache", ".ruff_cache", "kaggle_notebooks",
                             "submissions"]
             exclude_exts = [".parquet", ".bin", ".safetensors"]
-            src_dataset_slug = "{{username}}/{name}-src"
+            src_dataset_slug = "{username}/$name-src"
 
             [data]
-            dataset_slug = "{{username}}/{name}-data"
+            dataset_slug = "{username}/$name-data"
 
             [feature]
             branches = ["baseline", "tfidf", "transformer"]
             heavy_branches = ["transformer"]
             default_gpu = "t4x2"
-            kernel_slug_template = "{{username}}/{name}-{{branch}}"
-            kernel_title_prefix = "{name}"
-            notebook_command = "python scripts/run.py --config configs/features/{{branch}}.yaml --data-root /kaggle/input/datasets/{{username}}/{name}-data --out-dir /kaggle/working/features"
-            data_mount = "/kaggle/input/datasets/{{username}}/{name}-data"
-            src_mount = "/kaggle/input/datasets/{{username}}/{name}-src"
+            kernel_slug_template = "{username}/$name-{branch}"
+            kernel_title_prefix = "$name"
+            notebook_command = "python scripts/run.py --config configs/features/{{branch}}.yaml --data-root /kaggle/input/datasets/{username}/$name-data --out-dir /kaggle/working/features"
+            data_mount = "/kaggle/input/datasets/{username}/$name-data"
+            src_mount = "/kaggle/input/datasets/{username}/$name-src"
             out_dir = "/kaggle/working/features"
-            output_glob = "{{branch}}.parquet"
+            output_glob = "{branch}.parquet"
             default_timeout_sec = 3600
             poll_interval_sec = 60
 
@@ -321,7 +321,7 @@ _TEMPLATES: dict[str, dict[str, str]] = {
             max_length: 256
             ''',
         "README.md": '''\
-            # {name}
+            # $name
 
             NLP Kaggle project scaffolded with `kagglepipe template init nlp`.
 

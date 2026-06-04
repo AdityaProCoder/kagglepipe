@@ -63,7 +63,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_cfg_init.add_argument("--path", type=Path, default=None)
     p_cfg_init.add_argument("--name", default=None, help="Project name (default: dir basename)")
     p_cfg_init.add_argument("--force", action="store_true")
-    cfg_sub.add_parser("show", help="Print effective config")
+    p_cfg_show = cfg_sub.add_parser("show", help="Print effective config")
+    p_cfg_show.add_argument(
+        "--json", dest="json_output", action="store_true",
+        help="Emit machine-readable JSON.",
+    )
     cfg_sub.add_parser("path", help="Print the path kagglepipe will load")
 
     # --- src ---
@@ -343,7 +347,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.cfg_cmd == "init":
             return config_cmd.init(args.path, project_name=args.name, force=args.force)
         if args.cfg_cmd == "show":
-            return config_cmd.show()
+            return config_cmd.show(json_output=getattr(args, "json_output", False))
         if args.cfg_cmd == "path":
             return config_cmd.path()
     if args.cmd == "src":

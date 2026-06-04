@@ -347,8 +347,8 @@ download cycle, it would significantly improve first-impression conversion.
 | `kagglepipe whoami` | Print verified username |
 | `kagglepipe login` | Bootstrap `~/.kaggle/kaggle.json` |
 | `kagglepipe config init` | Scaffold `kaggle.toml` |
-| `kagglepipe config show [--json]` | Print effective config |
-| `kagglepipe validate` | Pre-flight checks (creds, config, deps, paths, notebook) (P10) |
+| `kagglepipe config show [--json]` | Print effective config (human or JSON) |
+| `kagglepipe validate [--json]` | Pre-flight checks (P10); `--json` emits machine-readable output |
 | `kagglepipe template init <type>` | Scaffold a starter project (tabular/cv/nlp) (P12) |
 | `kagglepipe template list` | List available templates |
 | `kagglepipe src upload [--version N] [--dry-run]` | Package & push source dataset |
@@ -373,7 +373,7 @@ download cycle, it would significantly improve first-impression conversion.
 | `kagglepipe competitions leaderboard <comp>` | Competition leaderboard |
 | `kagglepipe submit [--competition X] [--file f] [--train]` | Submit a file (P3) |
 | `kagglepipe submissions list\|latest\|watch\|best\|show` | Submission history + provenance (P3/P11/P11.5) |
-| `kagglepipe leaderboard latest` | Top-of-leaderboard helper (P11) |
+| `kagglepipe leaderboard latest <competition> [--top N] [--json]` | Top-of-leaderboard view (P11) |
 | `kagglepipe cache status\|clear` | Artifact cache (P5) |
 | `kagglepipe experiments record\|list\|show` | Experiment tracking (P6) |
 | `kagglepipe features list\|show` | Feature registry (P7) |
