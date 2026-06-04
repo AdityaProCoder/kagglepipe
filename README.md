@@ -1,11 +1,15 @@
 # KagglePipe
 
-**Workflow orchestration for Kaggle.** Manage feature pipelines, remote GPU jobs,
-and artifact lifecycles from your local codebase — without touching the browser.
+**Workflow orchestration for Kaggle.** Turn Kaggle into a remote feature-engineering
+cluster from your terminal.
 
 ```bash
-pip install -e . && kagglepipe --help
+kagglepipe feature run user_features --gpu t4x2
 ```
+
+That's it. KagglePipe handles the rest — package source code, generate a
+parameterized notebook, push the kernel, wait for completion, download the
+artifact, and store it as a parquet file.
 
 Kaggle CLI manages Kaggle **resources**.
 KagglePipe manages Kaggle **workflows**.
@@ -48,17 +52,43 @@ Instead of manually:
 7. Downloading output artifacts
 8. Organizing everything into a feature store
 
-You run:
+You run one command:
 
 ```bash
-kagglepipe feature run user_features
+kagglepipe feature run user_features --gpu t4x2
 ```
 
 And KagglePipe orchestrates the entire pipeline — end to end, from your terminal.
 
+KagglePipe treats Kaggle kernels as **remote workers** and Kaggle datasets as
+**versioned artifacts**.
+
 ---
 
-## Git analogy
+## Why Not Just Use Kaggle CLI?
+
+Kaggle CLI gives you **primitives** — raw API operations like
+`datasets version`, `kernels push`, `kernels output`. You can wire these together
+yourself. People do. That's how every serious competitor ends up with a
+`Makefile` or a `run_kaggle.sh` script by month two.
+
+The objection is fair: *why not just script it myself?*
+
+The answer: you can. People do. But:
+
+- Scripting dataset versioning yourself is brittle — `kaggle datasets list --search`
+  doesn't reliably match slugs, so version detection breaks silently
+- Notebook generation by copy-paste doesn't scale — add a new branch, update 4 files
+- Polling loops are tedious — and they crash on Windows cp1252 consoles when the
+  CLI emits box-drawing characters
+- Source upload + kernel push + artifact download is 6 steps that should be 1
+
+KagglePipe packages the patterns that experienced Kaggle competitors build
+anyway — into a reusable, versioned, configurable tool.
+
+---
+
+## Mental Model
 
 ```
 Git                        ~  Kaggle CLI
@@ -71,7 +101,67 @@ GitHub Actions doesn't replace Git — it sits on top of it.
 KagglePipe doesn't replace the Kaggle CLI — it sits on top of it.
 ```
 
-Kaggle CLI gives you **primitives**. KagglePipe gives you **workflows**.
+Kaggle CLI is the **engine**. KagglePipe is the **vehicle**.
+
+---
+
+## Install
+
+```bash
+git clone https://github.com/AdityaProCoder/kagglepipe && cd kagglepipe
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -e ".[dev]"   # Windows
+.venv/bin/python -m pip install -e ".[dev]"           # Linux/macOS
+
+kagglepipe --version        # -> kagglepipe 0.1.0
+kagglepipe whoami           # verify credentials
+```
+
+Credentials via `~/.kaggle/kaggle.json`, or set `KAGGLE_USERNAME` / `KAGGLE_KEY`.
+
+---
+
+## Configure
+
+```bash
+cd ~/my-kaggle-project
+kagglepipe config init --name myproj
+$EDITOR kaggle.toml
+```
+
+```toml
+[project]
+name = "myproj"
+
+[source]
+include = ["src", "configs", "scripts", "pyproject.toml"]
+exclude_dirs = [".venv", "data", "models", ".git", "__pycache__"]
+exclude_exts = [".parquet", ".lgb", ".pt", ".bin"]
+src_dataset_slug = "{username}/myproj-src"
+
+[data]
+dataset_slug = "{username}/myproj-data"
+
+[feature]
+branches = ["user_features", "graph_features", "embedding_features"]
+heavy_branches = ["graph_features", "embedding_features"]
+default_gpu = "t4x2"
+kernel_slug_template = "{username}/myproj-{branch}"
+kernel_title_prefix = "myproj"
+notebook_command = "python scripts/run.py --out {out_dir}"
+output_glob = "{branch}.parquet"
+
+[kernels]
+is_private = true
+enable_internet = true
+
+[paths]
+notebooks_dir = "kaggle_notebooks"
+features_dir  = "features_kaggle"
+```
+
+Every field accepts env-var overrides: `KAGGLEPIPE_<SECTION>__<FIELD>`
+(e.g. `KAGGLEPIPE_FEATURE__DEFAULT_GPU=p100`).
 
 ---
 
@@ -108,12 +198,40 @@ Run all configured branches sequentially, with a summary.
 
 ```bash
 kagglepipe feature all --gpu t4x2
-# === baseline ===
-# === dinov3_features ===
-# === siglip_features ===
-# === Summary (1,240s) ===
+# === user_features ===
+# === graph_features ===
+# === embedding_features ===
+# === Summary (2,180s) ===
 # Total: 3, OK: 3, Failed: 0
+
+ls features_kaggle/
+# embedding_features.parquet  graph_features.parquet  user_features.parquet
 ```
+
+---
+
+## Real-World Example
+
+A competition team with three feature branches working in parallel:
+
+```bash
+kagglepipe src upload              # sync source (auto-versioned)
+kagglepipe feature all --gpu t4x2  # run all three feature pipelines
+```
+
+After the run:
+
+```
+features_kaggle/
+  embedding_features.parquet   # 384-dim embeddings from a vision model
+  graph_features.parquet        # graph connectivity features
+  user_features.parquet         # hand-crafted user signals
+
+# Each parquet is ready to feed directly into a LightGBM stacker
+```
+
+No manual notebook editing. No checking the web UI. No renaming files.
+One command, three feature pipelines on Kaggle's free GPU hardware.
 
 ---
 
@@ -171,7 +289,7 @@ Kaggle CLI is the **engine**. KagglePipe is the **vehicle**.
 
 ## Design Philosophy
 
-- **Thin layer over the official Kaggle CLI** — no API magic, just better UX
+- **Thin layer over the official Kaggle CLI** — no API magic, just better workflow
 - **Configuration-driven** — `kaggle.toml` encodes your workflow, not your code
 - **Reproducible workflows** — same config, same result every run
 - **Local-first development** — iterate on your code, push when ready
@@ -179,63 +297,24 @@ Kaggle CLI is the **engine**. KagglePipe is the **vehicle**.
 
 ---
 
-## Install
+## Roadmap
 
-```bash
-git clone https://github.com/AdityaProCoder/kagglepipe && cd kagglepipe
-python -m venv .venv
-.venv\Scripts\python.exe -m pip install -e ".[dev]"   # Windows
-.venv/bin/python -m pip install -e ".[dev]"           # Linux/macOS
+Planned features (contributions welcome):
 
-kagglepipe --version        # -> kagglepipe 0.1.0
-kagglepipe whoami           # verify credentials
-```
-
-Credentials via `~/.kaggle/kaggle.json`, or set `KAGGLE_USERNAME` / `KAGGLE_KEY`.
+- **Parallel branch execution** — `feature all --parallel` runs branches simultaneously
+- **Dependency graphs** — express which branches depend on which outputs
+- **Artifact caching** — skip branches whose inputs haven't changed
+- **Experiment tracking** — tag runs, query metrics, diff configs
+- **Submission automation** — `kagglepipe competitions submit` with config-driven filenames
 
 ---
 
-## Configure
+## Visual Demo
 
-```bash
-cd ~/my-kaggle-project
-kagglepipe config init --name myproj
-$EDITOR kaggle.toml
-```
-
-```toml
-[project]
-name = "myproj"
-
-[source]
-include = ["src", "configs", "scripts", "pyproject.toml"]
-exclude_dirs = [".venv", "data", "models", ".git", "__pycache__"]
-exclude_exts = [".parquet", ".lgb", ".pt", ".bin"]
-src_dataset_slug = "{username}/myproj-src"
-
-[data]
-dataset_slug = "{username}/myproj-data"
-
-[feature]
-branches = ["baseline", "dinov3", "siglip"]
-heavy_branches = ["dinov3", "siglip"]
-default_gpu = "t4x2"
-kernel_slug_template = "{username}/myproj-{branch}"
-kernel_title_prefix = "myproj"
-notebook_command = "python scripts/run.py --out {out_dir}"
-output_glob = "{branch}.parquet"
-
-[kernels]
-is_private = true
-enable_internet = true
-
-[paths]
-notebooks_dir = "kaggle_notebooks"
-features_dir  = "features_kaggle"
-```
-
-Every field accepts env-var overrides: `KAGGLEPIPE_<SECTION>__<FIELD>`
-(e.g. `KAGGLEPIPE_FEATURE__DEFAULT_GPU=p100`).
+A terminal recording of `kagglepipe feature run` in action would convey the
+workflow faster than any documentation. If you'd like to contribute a
+GIF/screen recording showing the full `src upload` → kernel polling → artifact
+download cycle, it would significantly improve first-impression conversion.
 
 ---
 
@@ -249,7 +328,7 @@ Every field accepts env-var overrides: `KAGGLEPIPE_<SECTION>__<FIELD>`
 | `kagglepipe config show [--json]` | Print effective config |
 | `kagglepipe src upload [--version N]` | Package & push source dataset (auto-versions) |
 | `kagglepipe feature run <branch>` | Render notebook → push → poll → download artifact |
-| `kagglepipe feature all` | Run all configured branches sequentially |
+| `kagglepipe feature all [--branches a,b]` | Run all configured branches sequentially |
 | `kagglepipe status [--all] [--csv]` | List your kernels |
 | `kagglepipe kernels list` | List kernels with filters |
 | `kagglepipe kernels status <slug>` | Live kernel status |
