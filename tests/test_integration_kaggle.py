@@ -3,7 +3,7 @@
 Gated by `KAGGLEPIPE_RUN_INTEGRATION=1` so unit-test runs don't hit Kaggle.
 
 Pipeline:
-  1. Ensure `holamigohello/freuid-sample` (13 images, 3.2 MB) is on the account.
+  1. Ensure `holamigohello/sample-data` (13 images, 3.2 MB) is on the account.
   2. Upload a tiny source dataset (`kagglepipe-itest-src`).
   3. Push a tiny kernel that reads the data, writes a parquet.
   4. Poll until complete.
@@ -69,7 +69,7 @@ def test_end_to_end_pipeline(tmp_path, kaggle_creds):
         "out_dir = '/kaggle/working/features'\n"
         "os.makedirs(out_dir, exist_ok=True)\n"
         "rows = []\n"
-        "data_root = '/kaggle/input/datasets/holamigohello/freuid-sample'\n"
+        "data_root = '/kaggle/input/datasets/holamigohello/sample-data'\n"
         "if os.path.isdir(data_root):\n"
         "    for root, dirs, files in os.walk(data_root):\n"
         "        for f in sorted(files):\n"
@@ -82,9 +82,8 @@ def test_end_to_end_pipeline(tmp_path, kaggle_creds):
         "print('Wrote:', out_path, 'rows=', len(df))\n"
     )
 
-    # Config points the test at the user's existing 13-image freuid-sample
-    # dataset and creates new kagglepipe-itest-* slugs so we don't disturb
-    # the freuid pipeline.
+    # Config points the test at the user's existing 13-image dataset
+    # as the data source.
     cfg_text = f"""
 [project]
 name = "kagglepipe-itest"
@@ -96,7 +95,7 @@ exclude_exts = []
 src_dataset_slug = "{kaggle_creds.username}/kagglepipe-itest-src"
 
 [data]
-dataset_slug = "{kaggle_creds.username}/freuid-sample"
+dataset_slug = "{kaggle_creds.username}/sample-data"
 
 [feature]
 branches = ["itest"]
@@ -105,7 +104,7 @@ default_gpu = "none"
 kernel_slug_template = "{kaggle_creds.username}/kagglepipe-itest-{{branch}}"
 kernel_title_prefix = "kagglepipe-itest"
 notebook_command = "python scripts/run.py"
-data_mount = "/kaggle/input/datasets/{{username}}/freuid-sample"
+data_mount = "/kaggle/input/datasets/{{username}}/sample-data"
 src_mount = "/kaggle/input/datasets/{{username}}/kagglepipe-itest-src"
 out_dir = "/kaggle/working/features"
 output_glob = "itest.parquet"
@@ -124,14 +123,14 @@ features_dir = "features_kaggle"
 """
     (project / "kaggle.toml").write_text(cfg_text, encoding="utf-8")
 
-    # Verify the source dataset (freuid-sample) is on the account.
+    # Verify the source dataset (sample-data) is on the account.
     refs = _existing_dataset_refs(kaggle_creds)
-    freuid_sample = f"{kaggle_creds.username}/freuid-sample"
-    assert freuid_sample in refs, (
-        f"Expected {freuid_sample} to exist; cannot run integration test. "
-        f"Upload the 13 images at D:\\Project\\freuid\\data\\raw\\train_sample first."
+    sample = f"{kaggle_creds.username}/sample-data"
+    assert sample in refs, (
+        f"Expected {sample} to exist; cannot run integration test. "
+        f"Upload 13 images to your Kaggle account first."
     )
-    print(f"Found source data: {freuid_sample}")
+    print(f"Found source data: {sample}")
 
     # Run upload + feature
     os.chdir(project)

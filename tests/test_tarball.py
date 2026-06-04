@@ -10,8 +10,8 @@ from kagglepipe import tarball
 
 def test_build_tarball_includes_listed_entries(tmp_path: Path) -> None:
     (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "freuid").mkdir()
-    (tmp_path / "src" / "freuid" / "__init__.py").write_text("")
+    (tmp_path / "src" / "mypkg").mkdir()
+    (tmp_path / "src" / "mypkg" / "__init__.py").write_text("")
     (tmp_path / "configs").mkdir()
     (tmp_path / "configs" / "base.yaml").write_text("seed: 42")
     (tmp_path / "scripts").mkdir()
@@ -29,7 +29,7 @@ def test_build_tarball_includes_listed_entries(tmp_path: Path) -> None:
     assert out.exists()
     with tarfile.open(out, "r:gz") as tf:
         names = tf.getnames()
-    assert "src/freuid/__init__.py" in names
+    assert "src/mypkg/__init__.py" in names
     assert "configs/base.yaml" in names
     assert "scripts/run.py" in names
     assert "pyproject.toml" in names
