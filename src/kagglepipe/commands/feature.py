@@ -35,6 +35,62 @@ def validate_branch(cfg: Config, branch: str) -> str:
     return branch
 
 
+def resolve_notebook_command(
+    command: str,
+    *,
+    username: str,
+    branch: str,
+    out_dir: str = "/kaggle/working/features",
+    src_mount: str = "",
+    data_mount: str = "",
+) -> str:
+    """Resolve the notebook command string for the current run.
+
+    We support both the current `{branch}` placeholder and the legacy
+    `{{branch}}` form emitted by older scaffolded projects.
+    """
+    return _resolve_notebook_command(
+        command,
+        username=username,
+        branch=branch,
+        out_dir=out_dir,
+        src_mount=src_mount,
+        data_mount=data_mount,
+    )
+
+
+class _SafeFormatDict(dict[str, str]):
+    """Preserve unknown placeholders instead of raising KeyError."""
+
+    def __missing__(self, key: str) -> str:
+        return "{" + key + "}"
+
+
+def _resolve_notebook_command(
+    command: str,
+    *,
+    username: str,
+    branch: str,
+    out_dir: str,
+    src_mount: str,
+    data_mount: str,
+) -> str:
+    command = resolve_template(
+        command.replace("{{branch}}", "{branch}"),
+        username=username,
+        branch=branch,
+    )
+    return command.format_map(
+        _SafeFormatDict(
+            username=username,
+            branch=branch,
+            out_dir=out_dir,
+            src_mount=src_mount,
+            data_mount=data_mount,
+        )
+    )
+
+
 def run_feature(
     cfg: Config,
     branch: str,
@@ -100,10 +156,26 @@ def run_feature(
         out_dir=cfg.feature.out_dir,
         # Resolve {username} (and $name if present) in notebook_command
         # so the rendered notebook contains the actual resolved paths.
-        notebook_command=resolve_template(
+        notebook_command=resolve_notebook_command(
             cfg.feature.notebook_command,
             username=creds.username,
-        ).replace("{branch}", branch),
+            branch=branch,
+            out_dir=cfg.feature.out_dir,
+            src_mount=slug.resolve_template(
+                cfg.feature.src_mount,
+                username=creds.username,
+                dataset=src_slug.split("/", 1)[-1],
+            ),
+            data_mount=(
+                slug.resolve_template(
+                    cfg.feature.data_mount,
+                    username=creds.username,
+                    dataset=data_slug.split("/", 1)[-1],
+                )
+                if data_slug
+                else ""
+            ),
+        ),
         gpu=gpu_value,
     )
 

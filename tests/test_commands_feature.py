@@ -61,6 +61,19 @@ def test_gpu_instance_map() -> None:
     assert feature.GPU_INSTANCE_MAP["none"] is None
 
 
+def test_resolve_notebook_command_supports_legacy_branch_placeholder() -> None:
+    cmd = feature.resolve_notebook_command(
+        "python run.py --config configs/features/{{branch}}.yaml --out {out_dir}",
+        username="testuser",
+        branch="baseline",
+        out_dir="/kaggle/working/features",
+    )
+    assert "configs/features/baseline.yaml" in cmd
+    assert "/kaggle/working/features" in cmd
+    assert "{baseline}" not in cmd
+    assert "{out_dir}" not in cmd
+
+
 def test_run_feature_writes_notebook_and_metadata(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_creds: Path
 ) -> None:

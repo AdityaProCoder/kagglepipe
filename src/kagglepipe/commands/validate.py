@@ -28,6 +28,7 @@ from typing import Callable
 
 from kagglepipe import credentials, kaggle_api, notebook as nb_mod, runner, slug
 from kagglepipe.config import Config, load
+from kagglepipe.commands.feature import resolve_notebook_command
 from kagglepipe.state import state_dir
 
 
@@ -104,7 +105,21 @@ def _check_notebook_template(cfg: Config, creds_username: str, src_slug: str, da
                 if data_slug else ""
             ),
             out_dir=cfg.feature.out_dir,
-            notebook_command=cfg.feature.notebook_command,
+            notebook_command=resolve_notebook_command(
+                cfg.feature.notebook_command,
+                username=creds_username,
+                branch="__validate__",
+                out_dir=cfg.feature.out_dir,
+                src_mount=slug.resolve_template(
+                    cfg.feature.src_mount, username=creds_username, dataset=src_slug.split("/", 1)[-1]
+                ),
+                data_mount=(
+                    slug.resolve_template(
+                        cfg.feature.data_mount, username=creds_username, dataset=data_slug.split("/", 1)[-1]
+                    )
+                    if data_slug else ""
+                ),
+            ),
             gpu="t4 x2",
         )
     except Exception as exc:

@@ -1,0 +1,35 @@
+[project]
+name = "kpipe-inspect"
+
+[source]
+include = ["scripts"]
+exclude_dirs = []
+exclude_exts = []
+src_dataset_slug = "{username}/kagglepipe-inspect-src"
+
+[data]
+dataset_slug = "{username}/sample-data"
+
+[feature]
+branches = ["inspect"]
+heavy_branches = ["inspect"]
+default_gpu = "none"
+kernel_slug_template = "{username}/kpipe-inspect-{branch}"
+kernel_title_prefix = "kpipe-inspect"
+notebook_command = "python scripts/inspect.py --out-dir {out_dir}"
+data_mount = "/kaggle/input/datasets/{username}/sample-data"
+src_mount = "/kaggle/input/datasets/{username}/kagglepipe-inspect-src"
+out_dir = "/kaggle/working/features"
+output_glob = "inspect.json"
+default_timeout_sec = 300
+poll_interval_sec = 20
+
+[kernels]
+is_private = true
+enable_internet = false
+language = "python"
+kernel_type = "notebook"
+
+[paths]
+notebooks_dir = "kaggle_notebooks"
+features_dir = "features_kaggle"

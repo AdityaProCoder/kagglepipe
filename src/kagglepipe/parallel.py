@@ -28,7 +28,11 @@ from kagglepipe.config import Config
 from kagglepipe.polling import poll_kernel_status
 from kagglepipe.slug import normalize_slug, resolve_template
 from kagglepipe.state import RunRecord, RunStore
-from kagglepipe.commands.feature import GPU_INSTANCE_MAP, validate_branch
+from kagglepipe.commands.feature import (
+    GPU_INSTANCE_MAP,
+    resolve_notebook_command,
+    validate_branch,
+)
 
 
 def _render_and_push(
@@ -71,7 +75,22 @@ def _render_and_push(
             else ""
         ),
         out_dir=cfg.feature.out_dir,
-        notebook_command=cfg.feature.notebook_command,
+        notebook_command=resolve_notebook_command(
+            cfg.feature.notebook_command,
+            username=creds.username,
+            branch=branch,
+            out_dir=cfg.feature.out_dir,
+            src_mount=slug.resolve_template(
+                cfg.feature.src_mount, username=creds.username, dataset=src_slug.split("/", 1)[-1]
+            ),
+            data_mount=(
+                slug.resolve_template(
+                    cfg.feature.data_mount, username=creds.username, dataset=data_slug.split("/", 1)[-1]
+                )
+                if data_slug
+                else ""
+            ),
+        ),
         gpu=gpu_value,
     )
     nb_dir = (Path.cwd() / cfg.paths.notebooks_dir).resolve()
