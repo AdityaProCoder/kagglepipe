@@ -51,6 +51,10 @@ def _load_template(template_ref: str) -> Template:
     # Fall back to a direct file path.
     direct = Path(template_ref)
     if direct.is_absolute() or direct.exists():
+        if not direct.is_file():
+            raise FileNotFoundError(
+                f"Could not find notebook template {template_ref!r} as a package resource or a file."
+            )
         env = Environment(
             loader=FileSystemLoader(str(direct.parent)),
             undefined=StrictUndefined,
