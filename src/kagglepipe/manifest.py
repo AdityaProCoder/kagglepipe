@@ -41,7 +41,6 @@ from typing import Any
 from kagglepipe.provenance import git_commit, git_dirty, hash_file
 from kagglepipe.state import RunRecord, state_dir
 
-
 MANIFESTS_DIRNAME = "manifests"
 MANIFEST_SCHEMA = "kagglepipe.manifest.v1"
 

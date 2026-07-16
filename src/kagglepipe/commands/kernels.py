@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 import json
-import shutil
 import sys
-import tempfile
 from pathlib import Path
 
 from kagglepipe import credentials, kaggle_api, runner
-from kagglepipe.config import Config
 
 
 def list_kernels(

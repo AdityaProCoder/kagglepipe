@@ -16,12 +16,7 @@ You can delete them via `kagglepipe datasets list` / `kagglepipe kernels list`.
 
 from __future__ import annotations
 
-import json
 import os
-import shutil
-import sys
-import tempfile
-from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -29,22 +24,26 @@ import pytest
 from kagglepipe import credentials, runner
 from kagglepipe.commands import feature, src
 
-pytestmark = pytest.mark.integration
-
 
 def _has_integration_env() -> bool:
     return os.environ.get("KAGGLEPIPE_RUN_INTEGRATION") == "1"
 
 
-pytestmark = pytest.mark.skipif(
-    not _has_integration_env(),
-    reason="set KAGGLEPIPE_RUN_INTEGRATION=1 to run end-to-end Kaggle tests",
-)
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not _has_integration_env(),
+        reason="set KAGGLEPIPE_RUN_INTEGRATION=1 to run end-to-end Kaggle tests",
+    ),
+]
 
 
 @pytest.fixture(scope="module")
 def kaggle_creds() -> credentials.Credentials:
-    return credentials.load()
+    try:
+        return credentials.load()
+    except credentials.CredentialsError as exc:
+        pytest.skip(f"Kaggle integration credentials unavailable: {exc}")
 
 
 def _existing_dataset_refs(creds: credentials.Credentials) -> set[str]:

@@ -12,8 +12,8 @@ def poll_kernel_status(
     *,
     timeout_sec: int,
     poll_interval_sec: int = 30,
-    sleep_fn: "callable | None" = None,
-    time_fn: "callable | None" = None,
+    sleep_fn: callable | None = None,
+    time_fn: callable | None = None,
 ) -> str:
     """Poll `kaggle kernels status` until terminal state or timeout.
 

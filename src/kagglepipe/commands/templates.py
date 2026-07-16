@@ -363,10 +363,10 @@ def cmd_template_init(template: str, *, project_name: str | None = None,
         print(f"  + {p.relative_to(base)}")
     for p in skipped:
         print(f"  = {p.relative_to(base)} (skipped, exists; pass --force to overwrite)")
-    print(f"\nNext steps:")
-    print(f"  kagglepipe config show        # review the generated kaggle.toml")
-    print(f"  kagglepipe validate           # check config + credentials + paths")
-    print(f"  kagglepipe src upload         # sync source to Kaggle")
+    print("\nNext steps:")
+    print("  kagglepipe config show        # review the generated kaggle.toml")
+    print("  kagglepipe validate           # check config + credentials + paths")
+    print("  kagglepipe src upload         # sync source to Kaggle")
     return 0
 
 

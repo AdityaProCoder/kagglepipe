@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-import json
-import os
-import subprocess
 import tarfile
-from pathlib import Path
 
 import pytest
 
@@ -21,7 +17,6 @@ from kagglepipe.state import (
     SubmissionRecord,
     SubmissionStore,
 )
-
 
 # ---------------- P9: dry run ----------------
 
@@ -139,6 +134,25 @@ output_glob = "{branch}.parquet"
     assert "FAIL" in out
 
 
+def test_validate_runs_local_checks_without_credentials(tmp_path, monkeypatch, capsys) -> None:
+    """First-run validation should report config problems as well as auth."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("KAGGLE_USERNAME", raising=False)
+    monkeypatch.delenv("KAGGLE_KEY", raising=False)
+    monkeypatch.setattr("pathlib.Path.home", classmethod(lambda cls: tmp_path))
+    (tmp_path / "kaggle.toml").write_text(
+        "[source]\ninclude = [\"missing\"]\n"
+        "[feature]\nbranches = []\ndefault_gpu = \"none\"\n"
+        "output_glob = \"{branch}.parquet\"\n"
+    )
+
+    assert validate_cmd.cmd_validate() == 1
+    out = capsys.readouterr().out
+    assert "credentials" in out
+    assert "paths" in out
+    assert "branches" in out
+
+
 # ---------------- P11: leaderboard helpers ----------------
 
 
@@ -155,8 +169,6 @@ def test_cmd_submissions_best_finds_highest(tmp_path, monkeypatch, fake_creds) -
     SubmissionStore(tmp_path).add(SubmissionRecord(competition="c", file_path="/c", message="v3", submission_id="s3", score=0.7))
     rc = submissions_cmd.cmd_submissions_best(json_output=True)
     assert rc == 0
-    import json as _j
-    out = _j.loads(__import__("io").StringIO().getvalue() or "[]") or None
 
 
 def test_cmd_submissions_show_by_id(tmp_path, monkeypatch, fake_creds) -> None:

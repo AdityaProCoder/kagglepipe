@@ -48,6 +48,8 @@ def load(path: Path | None = None) -> Credentials:
         )
     try:
         data = json.loads(cfg.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise CredentialsError(f"Could not read Kaggle credentials at {cfg}: {exc}") from exc
     except json.JSONDecodeError as exc:
         raise CredentialsError(f"Invalid JSON in {cfg}: {exc}") from exc
     try:

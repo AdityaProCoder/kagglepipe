@@ -22,13 +22,12 @@ Categories checked:
 from __future__ import annotations
 
 import re
-import sys
 from pathlib import Path
-from typing import Callable
 
-from kagglepipe import credentials, kaggle_api, notebook as nb_mod, runner, slug
-from kagglepipe.config import Config, load
+from kagglepipe import credentials, runner, slug
+from kagglepipe import notebook as nb_mod
 from kagglepipe.commands.feature import resolve_notebook_command
+from kagglepipe.config import Config, load
 from kagglepipe.state import state_dir
 
 
@@ -257,16 +256,19 @@ def cmd_validate(*, json_output: bool = False) -> int:
         else ""
     )
 
+    # Local checks are useful before credentials are configured.  Only the
+    # remote API checks require authentication; keeping them separate makes
+    # `validate` an effective first-run diagnostic instead of a dead end.
+    issues.append(("paths", _check_paths(cfg, root)))
+    issues.append(("branches", _check_branches(cfg)))
+    issues.append(("output_glob", _check_output_glob(cfg)))
+    issues.append(("gpu", _check_gpu(cfg)))
+    issues.append(("dependency_graph", _check_dependency_graph(cfg)))
+    issues.append(("notebook_template", _check_notebook_template(cfg, username, src_slug, data_slug)))
+    issues.append(("state_dir", _check_state_dir()))
+    issues.append(("dataset_slugs", _check_dataset_slugs(cfg)))
     if creds is not None:
-        issues.append(("paths", _check_paths(cfg, root)))
-        issues.append(("branches", _check_branches(cfg)))
         issues.append(("src_dataset_exists", _check_src_dataset_exists(cfg, username)))
-        issues.append(("output_glob", _check_output_glob(cfg)))
-        issues.append(("gpu", _check_gpu(cfg)))
-        issues.append(("dependency_graph", _check_dependency_graph(cfg)))
-        issues.append(("notebook_template", _check_notebook_template(cfg, username, src_slug, data_slug)))
-        issues.append(("state_dir", _check_state_dir()))
-        issues.append(("dataset_slugs", _check_dataset_slugs(cfg)))
         issues.append(("competition", _check_competition(cfg)))
 
     if json_output:

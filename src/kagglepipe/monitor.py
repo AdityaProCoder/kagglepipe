@@ -12,10 +12,9 @@ view be a thin renderer.
 
 from __future__ import annotations
 
-import os
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +28,6 @@ from kagglepipe.state import (
     RunStore,
     SubmissionStore,
 )
-
 
 # ---- view-model types ----------------------------------------------------
 
@@ -132,7 +130,7 @@ class MonitorSnapshot:
 
     @property
     def collected_at_human(self) -> str:
-        return datetime.fromtimestamp(self.collected_at, tz=timezone.utc).strftime(
+        return datetime.fromtimestamp(self.collected_at, tz=UTC).strftime(
             "%Y-%m-%d %H:%M:%S UTC"
         )
 
@@ -168,7 +166,7 @@ def _humanize_time(ts: float) -> str:
         return f"{int(delta // 3600)}h ago"
     if delta < 86400 * 30:
         return f"{int(delta // 86400)}d ago"
-    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
+    return datetime.fromtimestamp(ts, tz=UTC).strftime("%Y-%m-%d")
 
 
 def _safe_load_state(loader, *args: Any, default: Any) -> Any:
@@ -384,8 +382,9 @@ def render_static(snapshot: MonitorSnapshot) -> str:
     Useful for non-interactive contexts (CI logs, `cat`-style
     inspection) and for the `--once` flag.
     """
-    from rich.console import Console
     from io import StringIO
+
+    from rich.console import Console
 
     from kagglepipe.commands.monitor import build_layout
 

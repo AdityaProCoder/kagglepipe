@@ -13,8 +13,6 @@ Architecture:
 
 from __future__ import annotations
 
-from typing import Optional
-
 from rich.align import Align
 from rich.console import Group
 from rich.layout import Layout
@@ -25,15 +23,8 @@ from rich.table import Table
 from rich.text import Text
 
 from kagglepipe.monitor import (
-    ArtifactView,
-    BestSubmissionView,
-    JobView,
     MonitorSnapshot,
-    SubmissionView,
-    _humanize_bytes,
-    _humanize_time,
 )
-
 
 # ---- state -> style mapping --------------------------------------------
 
@@ -118,12 +109,6 @@ def _build_jobs_panel(snapshot: MonitorSnapshot) -> Panel:
     for j in snapshot.jobs:
         # Build a single status cell that combines state, elapsed, GPU
         # and cache. Keeps the row readable even on narrow panels.
-        if j.state in {"running"}:
-            elapsed_str = _format_elapsed(j.elapsed_seconds)
-        elif j.state in {"complete", "error", "timeout", "skipped"}:
-            elapsed_str = _format_elapsed(j.elapsed_seconds)
-        else:
-            elapsed_str = "—"
         gpu_str = j.gpu if j.gpu else "n/a"
         # Compact: just state · gpu (drop cache and elapsed from inline;
         # elapsed is on its own implicit via the state badge).
@@ -412,7 +397,7 @@ def build_layout(snapshot: MonitorSnapshot) -> Layout:
 # ---- the CLI command -----------------------------------------------------
 
 
-def cmd_monitor(*, refresh: int = 5, once: bool = False, project_root: Optional[str] = None) -> int:
+def cmd_monitor(*, refresh: int = 5, once: bool = False, project_root: str | None = None) -> int:
     """Entry point for `kagglepipe monitor [--refresh N] [--once]`.
 
     - `refresh`: seconds between auto-refresh (default 5, min 1).
@@ -425,6 +410,7 @@ def cmd_monitor(*, refresh: int = 5, once: bool = False, project_root: Optional[
     snapshot. The `--once` flag forces non-interactive rendering.
     """
     from pathlib import Path
+
     from kagglepipe.monitor import collect_snapshot
 
     root = Path(project_root) if project_root else Path.cwd()
@@ -434,13 +420,36 @@ def cmd_monitor(*, refresh: int = 5, once: bool = False, project_root: Optional[
     import sys
     is_tty = sys.stdout.isatty()
     if once or not is_tty:
-        from rich.console import Console
         snapshot = collect_snapshot(root)
-        layout = build_layout(snapshot)
-        Console().print(layout)
+        # A compact ASCII snapshot is deliberate here: it is reliable in CI,
+        # log collectors, redirected output, and legacy Windows code pages.
+        # The full Rich dashboard remains available in an interactive TTY.
+        print(_plain_snapshot(snapshot))
         return 0
 
     # Interactive: live-rendering loop with the same layout.
     from kagglepipe.monitor_app import run_monitor
 
     return run_monitor(refresh_seconds=refresh, project_root=root)
+
+
+def _plain_snapshot(snapshot: MonitorSnapshot) -> str:
+    """Return a portable, machine-log-friendly one-shot monitor summary."""
+    lines = [
+        f"KagglePipe Monitor | Project: {snapshot.project_name} | User: {snapshot.user or '-'}",
+        (
+            "Runs: "
+            f"{snapshot.total_branches} total, {snapshot.completed} complete, "
+            f"{snapshot.running} running, {snapshot.failed} failed, {snapshot.queued} queued"
+        ),
+    ]
+    if snapshot.jobs:
+        lines.append("Jobs:")
+        lines.extend(f"  {job.branch}: {job.state}" for job in snapshot.jobs)
+    else:
+        lines.append("Jobs: none")
+    if snapshot.artifacts:
+        lines.append(f"Artifacts: {len(snapshot.artifacts)}")
+    else:
+        lines.append("Artifacts: none")
+    return "\n".join(lines)

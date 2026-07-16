@@ -15,8 +15,7 @@ Example config:
 from __future__ import annotations
 
 import sys
-from collections import defaultdict, deque
-from typing import Any
+from collections import defaultdict
 
 from kagglepipe.config import Config
 

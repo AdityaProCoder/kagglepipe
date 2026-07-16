@@ -23,16 +23,16 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from kagglepipe import credentials, kaggle_api, notebook as nb_mod, runner, slug
-from kagglepipe.config import Config
-from kagglepipe.polling import poll_kernel_status
-from kagglepipe.slug import normalize_slug, resolve_template
-from kagglepipe.state import RunRecord, RunStore
+from kagglepipe import credentials, kaggle_api, runner, slug
+from kagglepipe import notebook as nb_mod
 from kagglepipe.commands.feature import (
     GPU_INSTANCE_MAP,
     resolve_notebook_command,
     validate_branch,
 )
+from kagglepipe.config import Config
+from kagglepipe.slug import normalize_slug, resolve_template
+from kagglepipe.state import RunRecord, RunStore
 
 
 def _render_and_push(
@@ -96,7 +96,7 @@ def _render_and_push(
     nb_dir = (Path.cwd() / cfg.paths.notebooks_dir).resolve()
     nb_dir.mkdir(parents=True, exist_ok=True)
     nb_path = nb_dir / f"extract_{normalize_slug(branch)}.ipynb"
-    nb_path.write_text(json_str := _to_json(nb), encoding="utf-8")
+    nb_path.write_text(_to_json(nb), encoding="utf-8")
     kernel_md = nb_mod.write_kernel_metadata(
         kernel_slug=kernel_slug,
         title=f"{cfg.feature.kernel_title_prefix}-{normalize_slug(branch)}",

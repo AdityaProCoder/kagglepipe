@@ -13,14 +13,10 @@ Lineage is best-effort. We track it when:
 from __future__ import annotations
 
 import json
-import os
-import threading
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
 
 from kagglepipe.state import state_dir
-
 
 LINEAGE_FILE = "lineage.json"
 
@@ -34,7 +30,7 @@ class LineageEdge:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "LineageEdge":
+    def from_dict(cls, d: dict) -> LineageEdge:
         return cls(**d)
 
 

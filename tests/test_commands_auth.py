@@ -7,7 +7,30 @@ from pathlib import Path
 
 import pytest
 
+from kagglepipe.cli import _build_parser, main
 from kagglepipe.commands import auth as auth_cmd
+
+
+def test_legacy_auth_commands_remain_available() -> None:
+    """The grouped auth UX must not break existing scripts."""
+    parser = _build_parser()
+    assert parser.parse_args(["whoami"]).cmd == "whoami"
+    assert parser.parse_args(["login", "--username", "alice", "--key", "secret"]).cmd == "login"
+    grouped = parser.parse_args(["auth", "whoami"])
+    assert grouped.cmd == "auth"
+    assert grouped.auth_cmd == "whoami"
+
+
+def test_login_with_custom_path_uses_that_path_for_project_setup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A custom credentials path must not be discarded after login."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("pathlib.Path.home", classmethod(lambda cls: tmp_path / "home"))
+    target = tmp_path / "credentials.json"
+
+    assert main(["auth", "login", "--username", "alice", "--key", "secret", "--path", str(target)]) == 0
+    assert (tmp_path / "kaggle.toml").exists()
 
 
 def test_whoami_prints_username(

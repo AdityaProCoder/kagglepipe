@@ -55,7 +55,7 @@ def login(
     if not key:
         print("Key required.", file=sys.stderr)
         return 1
-    target = target or credentials.default_path()
+    target = target or path or credentials.default_path()
     written = credentials.write(username, key, target)
     print(f"Wrote credentials to {written}")
     return 0

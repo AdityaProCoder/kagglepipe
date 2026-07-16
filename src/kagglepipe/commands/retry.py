@@ -10,9 +10,7 @@ subcommand: `retry failed`, `retry error`, `retry timeout`, `retry all`.
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
-from kagglepipe import slug as slug_mod
 from kagglepipe.config import Config
 from kagglepipe.state import RunStore
 

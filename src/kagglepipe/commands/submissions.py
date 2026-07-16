@@ -20,12 +20,10 @@ import sys
 import time
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
 
-from kagglepipe import credentials, kaggle_api, runner
+from kagglepipe import kaggle_api, runner
 from kagglepipe.config import Config
 from kagglepipe.provenance import build_provenance
-from kagglepipe.slug import normalize_slug, resolve_template
 from kagglepipe.state import SubmissionRecord, SubmissionStore
 
 
@@ -74,7 +72,6 @@ def cmd_submit(
         print(f"Submission file not found: {sub_path}", file=sys.stderr)
         return 1
 
-    creds = credentials.load()
     # Build the provenance record before submission so it captures state
     # even if the upload itself fails.
     provenance = build_provenance(
@@ -268,8 +265,6 @@ def cmd_submissions_watch(
     one for this competition from the local SubmissionStore.
     """
     import time
-    creds = credentials.load()
-    username = creds.username
     seen: dict[str, str | None] = {}  # submission_id -> last known score
     # Seed with local store.
     for r in SubmissionStore().all():
@@ -309,8 +304,6 @@ def cmd_leaderboard_latest(competition: str, *, top: int = 20,
     Combines `kaggle competitions leaderboard` with the local SubmissionStore
     to surface the user's rank and score.
     """
-    creds = credentials.load()
-    username = creds.username
     # Pull leaderboard
     result = runner.run(["competitions", "leaderboard", "-c", competition, "--csv"])
     rows = _parse_leaderboard_rows(result.stdout or "")

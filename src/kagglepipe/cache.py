@@ -27,7 +27,6 @@ from typing import Any
 from kagglepipe.config import Config
 from kagglepipe.state import state_dir
 
-
 CACHE_DIRNAME = "cache"
 
 
@@ -52,7 +51,7 @@ class CacheEntry:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "CacheEntry":
+    def from_dict(cls, d: dict) -> CacheEntry:
         return cls(**d)
 
 

@@ -10,10 +10,8 @@ can be unit-tested in isolation.
 
 from __future__ import annotations
 
-import sys
 import time
 from pathlib import Path
-from typing import Optional
 
 from rich.console import Console
 from rich.live import Live
@@ -35,7 +33,7 @@ class MonitorApp:
         self,
         *,
         refresh_seconds: int = 5,
-        project_root: Optional[Path] = None,
+        project_root: Path | None = None,
     ) -> None:
         if refresh_seconds < 1:
             refresh_seconds = 1
@@ -82,7 +80,7 @@ class MonitorApp:
         self._console.print(self._render_once())
 
 
-def run_monitor(refresh_seconds: int, project_root: Optional[Path] = None) -> int:
+def run_monitor(refresh_seconds: int, project_root: Path | None = None) -> int:
     """Top-level entry used by the CLI. Kept as a tiny shim so callers
     don't need to import the class directly.
     """

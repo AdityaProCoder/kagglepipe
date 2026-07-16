@@ -11,12 +11,11 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, Template
-
 
 DEFAULT_TEMPLATE_PACKAGE = "kagglepipe.templates.notebook_default"
 
@@ -30,7 +29,6 @@ def _load_template(template_ref: str) -> Template:
       - "/abs/path/to/foo.j2"      -> loads directly
       - "relative/foo.j2"          -> loads relative to CWD
     """
-    pkg_path = template_ref.replace(".", "/")
     # Try package resource first.
     if "." in template_ref and not Path(template_ref).exists():
         try:
@@ -84,7 +82,7 @@ def render(
     suitable for serialization via `json.dumps`.
     """
     template = _load_template(template_ref)
-    when = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    when = date or datetime.now(UTC).strftime("%Y-%m-%d")
     rendered = template.render(
         branch=branch,
         src_dataset_slug=src_dataset_slug,

@@ -19,14 +19,14 @@ python -m venv .venv
 ## 1. Credentials
 
 ```bash
-kagglepipe login              # interactive (username + API key prompts)
+kagglepipe auth login         # interactive (username + API key prompts)
 # or manually:
 mkdir -p ~/.kaggle
 echo '{"username":"you","key":"yourkey"}' > ~/.kaggle/kaggle.json
 # or env vars:
 #   export KAGGLE_USERNAME=you KAGGLE_KEY=yourkey
 
-kagglepipe whoami             # verify
+kagglepipe auth whoami        # verify
 ```
 
 ---
@@ -128,6 +128,10 @@ kagglepipe status --csv             # CSV output
 kagglepipe kernels logs you/myproj-accurate
 kagglepipe kernels output you/myproj-accurate
 kagglepipe kernels stop you/myproj-accurate
+
+# interactive dashboard; use --once for CI or logs
+kagglepipe monitor
+kagglepipe monitor --once
 ```
 
 ---

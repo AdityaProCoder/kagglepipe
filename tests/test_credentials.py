@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import pytest
@@ -40,6 +39,20 @@ def test_load_invalid_json(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> N
     cfg.write_text("{not json")
     monkeypatch.setattr("pathlib.Path.home", classmethod(lambda cls: tmp_path))
     with pytest.raises(credentials.CredentialsError, match="Invalid JSON"):
+        credentials.load(cfg)
+
+
+def test_load_unreadable_file_raises_credentials_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = tmp_path / "kaggle.json"
+    cfg.write_text(json.dumps({"username": "bob", "key": "xyz"}))
+
+    def denied(*_args, **_kwargs):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(Path, "read_text", denied)
+    with pytest.raises(credentials.CredentialsError, match="Could not read"):
         credentials.load(cfg)
 
 

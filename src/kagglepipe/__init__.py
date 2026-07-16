@@ -4,4 +4,4 @@ A thin, configurable orchestrator on top of the official `kaggle` CLI.
 See README.md for the command tree and quickstart.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

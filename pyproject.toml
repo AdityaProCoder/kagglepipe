@@ -1,10 +1,10 @@
 [project]
 name = "kagglepipe"
-version = "0.1.0"
-description = "Full terminal control over Kaggle. Thin, configurable orchestrator on top of the official kaggle CLI."
+version = "0.2.0"
+description = "A reproducible command-line workflow for Kaggle datasets, kernels, artifacts, and submissions."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "kagglepipe contributors" }]
 keywords = ["kaggle", "cli", "workflow", "gpu", "notebook", "pipeline"]
 classifiers = [
@@ -12,7 +12,6 @@ classifiers = [
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -21,11 +20,14 @@ classifiers = [
 ]
 dependencies = [
     "jinja2>=3.1",
-    "tomli>=2.0; python_version<'3.11'",
-    "pandas",
-    "pyyaml",
+    "kaggle>=1.6",
     "rich>=13.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/AdityaProCoder/kagglepipe"
+Documentation = "https://github.com/AdityaProCoder/kagglepipe#readme"
+Issues = "https://github.com/AdityaProCoder/kagglepipe/issues"
 
 [project.optional-dependencies]
 dev = [
@@ -34,14 +36,13 @@ dev = [
     "pytest-timeout>=2.2",
     "ruff>=0.5",
     "mypy>=1.10",
-    "kaggle>=1.6",
 ]
 
 [project.scripts]
 kagglepipe = "kagglepipe.cli:main"
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68", "wheel>=0.41"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
@@ -53,7 +54,7 @@ kagglepipe = ["templates/*.j2"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q --basetemp=.pytest-tmp"
 pythonpath = ["src"]
 markers = [
     "integration: end-to-end tests that hit the real Kaggle API (set KAGGLEPIPE_RUN_INTEGRATION=1)",

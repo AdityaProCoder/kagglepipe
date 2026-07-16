@@ -2,24 +2,21 @@
 
 from __future__ import annotations
 
-import argparse
 import json
-import shutil
-import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
-from kagglepipe import credentials, kaggle_api, notebook as nb_mod, runner, slug
+from kagglepipe import credentials, kaggle_api, runner, slug
+from kagglepipe import notebook as nb_mod
 from kagglepipe.config import Config
-from kagglepipe.polling import poll_kernel_status
-from kagglepipe.slug import normalize_slug, resolve_template
-from kagglepipe.state import RunRecord, RunStore, state_dir
 from kagglepipe.manifest import write_manifest
+from kagglepipe.polling import poll_kernel_status
 from kagglepipe.provenance import build_provenance, git_commit, git_dirty, hash_file
-
+from kagglepipe.slug import normalize_slug, resolve_template
+from kagglepipe.state import RunRecord, RunStore
 
 # Map CLI token -> Kaggle kernel metadata value. Kaggle expects "t4 x2".
 GPU_INSTANCE_MAP: dict[str, str] = {"p100": "p100", "t4x2": "t4 x2", "none": None}
@@ -229,7 +226,6 @@ def run_feature(
 
     # P13: capture provenance now (in case the run fails later, we still
     # have a partial manifest).
-    from kagglepipe.provenance import build_provenance, git_commit, git_dirty, hash_file
     provenance = build_provenance()
     notebook_hash = hash_file(nb_path)
 
@@ -249,6 +245,24 @@ def run_feature(
     if not quiet:
         print(f"Kernel state: {state}")
     if state != "complete":
+        # Record the failed run so the monitor shows it correctly
+        error_rec = RunRecord(
+            branch=branch,
+            kernel_slug=kernel_slug,
+            state=state,
+            artifact_path=None,
+            finished_at=time.time(),
+            config_hash=_cfg_hash_for_branch(cfg, branch),
+            git_commit=git_commit(),
+            git_dirty=git_dirty(),
+            gpu=gpu_value,
+            src_slug=src_slug,
+            src_version=src_version if isinstance(src_version, int) else None,
+            dataset_versions=provenance.get("dataset_versions", {}),
+            notebook_hash=notebook_hash,
+            started_at=time.time() - (timeout_sec or cfg.feature.default_timeout_sec),
+        )
+        RunStore().add(error_rec)
         print(f"Inspect logs: {kaggle_api.kernels_logs_url(kernel_slug)}", file=sys.stderr)
         return 1
 
@@ -290,6 +304,7 @@ def run_feature(
         notebook_hash=notebook_hash,
     )
     write_manifest(rec)
+    RunStore().add(rec)
     return 0
 
 

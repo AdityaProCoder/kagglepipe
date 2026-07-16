@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import sys
-
 from kagglepipe import credentials, kaggle_api
 from kagglepipe.config import Config
 from kagglepipe.slug import normalize_slug

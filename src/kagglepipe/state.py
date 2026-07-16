@@ -23,7 +23,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-
 STATE_DIRNAME = ".kagglepipe"
 
 
@@ -87,7 +86,7 @@ class RunRecord:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "RunRecord":
+    def from_dict(cls, d: dict) -> RunRecord:
         # Backward-compat: ignore unknown fields from older records.
         known = {f.name for f in __import__("dataclasses").fields(cls)}
         return cls(**{k: v for k, v in d.items() if k in known})
@@ -188,7 +187,7 @@ class SubmissionRecord:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "SubmissionRecord":
+    def from_dict(cls, d: dict) -> SubmissionRecord:
         # Backward-compat: older records may not have the P11.5 fields.
         known = {f.name for f in __import__("dataclasses").fields(cls)}
         return cls(**{k: v for k, v in d.items() if k in known})
@@ -247,7 +246,7 @@ class ExperimentRecord:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "ExperimentRecord":
+    def from_dict(cls, d: dict) -> ExperimentRecord:
         return cls(**d)
 
 
@@ -301,7 +300,7 @@ class FeatureRecord:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "FeatureRecord":
+    def from_dict(cls, d: dict) -> FeatureRecord:
         return cls(**d)
 
 

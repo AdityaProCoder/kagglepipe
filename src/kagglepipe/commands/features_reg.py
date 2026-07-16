@@ -14,9 +14,8 @@ from __future__ import annotations
 import json
 import sys
 from dataclasses import asdict
-from typing import Any
 
-from kagglepipe.state import FeatureRecord, FeatureStore
+from kagglepipe.state import FeatureStore
 
 
 def cmd_features_list(*, csv_output: bool = False, json_output: bool = False) -> int:

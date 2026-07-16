@@ -6,24 +6,59 @@ import argparse
 import sys
 from pathlib import Path
 
-from kagglepipe import __version__, bundle as bundle_mod, cache as cache_mod, config as cfg_mod
+from kagglepipe import __version__, credentials
+from kagglepipe import bundle as bundle_mod
+from kagglepipe import cache as cache_mod
+from kagglepipe import config as cfg_mod
 from kagglepipe.commands import (
     auth as auth_cmd,
+)
+from kagglepipe.commands import (
     competitions as comp_cmd,
+)
+from kagglepipe.commands import (
     config_cmd,
+)
+from kagglepipe.commands import (
     datasets as ds_cmd,
+)
+from kagglepipe.commands import (
     experiments as exp_cmd,
+)
+from kagglepipe.commands import (
     feature as feature_cmd,
+)
+from kagglepipe.commands import (
     features_reg as features_cmd,
+)
+from kagglepipe.commands import (
     graph as graph_cmd,
+)
+from kagglepipe.commands import (
     kernels as kernels_cmd,
+)
+from kagglepipe.commands import (
     lineage as lineage_cmd,
+)
+from kagglepipe.commands import (
     monitor as monitor_cmd,
+)
+from kagglepipe.commands import (
     retry as retry_cmd,
+)
+from kagglepipe.commands import (
     src as src_cmd,
+)
+from kagglepipe.commands import (
     status as status_cmd,
+)
+from kagglepipe.commands import (
     submissions as submissions_cmd,
+)
+from kagglepipe.commands import (
     templates as templates_cmd,
+)
+from kagglepipe.commands import (
     validate as validate_cmd,
 )
 
@@ -47,12 +82,21 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="cmd", required=True, metavar="COMMAND")
 
     # --- auth ---
-    sub.add_parser("whoami", help="Print the current Kaggle username")
-
-    p_login = sub.add_parser("login", help="Bootstrap ~/.kaggle/kaggle.json")
+    p_auth = sub.add_parser("auth", help="Authentication commands")
+    auth_sub = p_auth.add_subparsers(dest="auth_cmd", required=True, metavar="AUTH_CMD")
+    p_login = auth_sub.add_parser("login", help="Bootstrap ~/.kaggle/kaggle.json")
     p_login.add_argument("--username", help="Kaggle username")
     p_login.add_argument("--key", help="Kaggle API key (omit to prompt)")
-    p_login.add_argument(
+    p_login.add_argument("--path", type=Path, default=None,
+        help="Override credentials file path (default: ~/.kaggle/kaggle.json)")
+    auth_sub.add_parser("whoami", help="Print the current Kaggle username")
+    # Keep the original top-level commands as stable aliases.  `auth` groups
+    # related commands without breaking existing scripts or documentation.
+    sub.add_parser("whoami", help="Alias for `auth whoami`")
+    p_login_legacy = sub.add_parser("login", help="Alias for `auth login`")
+    p_login_legacy.add_argument("--username", help="Kaggle username")
+    p_login_legacy.add_argument("--key", help="Kaggle API key (omit to prompt)")
+    p_login_legacy.add_argument(
         "--path", type=Path, default=None,
         help="Override credentials file path (default: ~/.kaggle/kaggle.json)",
     )
@@ -63,6 +107,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p_cfg_init = cfg_sub.add_parser("init", help="Scaffold kaggle.toml in cwd")
     p_cfg_init.add_argument("--path", type=Path, default=None)
     p_cfg_init.add_argument("--name", default=None, help="Project name (default: dir basename)")
+    p_cfg_init.add_argument("--username", default=None, help="Kaggle username (default: leave as {username})")
+    p_cfg_init.add_argument("--auto", action="store_true",
+        help="Auto-fill username (from credentials) and detect branches (from features/)")
     p_cfg_init.add_argument("--force", action="store_true")
     p_cfg_show = cfg_sub.add_parser("show", help="Print effective config")
     p_cfg_show.add_argument(
@@ -70,6 +117,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Emit machine-readable JSON.",
     )
     cfg_sub.add_parser("path", help="Print the path kagglepipe will load")
+
+    # fill: patch an existing kaggle.toml to resolve {username}/{project_name} placeholders
+    p_cfg_fill = cfg_sub.add_parser("fill", help="Fill in username and project name in existing kaggle.toml")
+    p_cfg_fill.add_argument("--path", type=Path, default=None)
+    p_cfg_fill.add_argument("--username", default=None, required=True, help="Kaggle username")
+    p_cfg_fill.add_argument("--project-name", default=None, help="Project name (default: current value in kaggle.toml)")
 
     # --- src ---
     p_src = sub.add_parser("src", help="Source dataset operations")
@@ -171,7 +224,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # P12: template library.
     p_tpl = sub.add_parser("template", help="Project templates (P12).")
     tpl_sub = p_tpl.add_subparsers(dest="tpl_cmd", required=True, metavar="TPL_CMD")
-    p_tpl_list = tpl_sub.add_parser("list")
+    tpl_sub.add_parser("list")
     p_tpl_init = tpl_sub.add_parser("init", help="Scaffold a project from a template.")
     p_tpl_init.add_argument("template", help="Template name (tabular|cv|nlp)")
     p_tpl_init.add_argument("--name", default=None, help="Project name (default: dir basename)")
@@ -358,17 +411,41 @@ def main(argv: list[str] | None = None) -> int:
     cfg = cfg_mod.load(args.config) if args.config else cfg_mod.load()
 
     # --- dispatch ---
-    if args.cmd == "whoami":
-        return auth_cmd.whoami()
-    if args.cmd == "login":
-        return auth_cmd.login(username=args.username, key=args.key, path=args.path)
+    if args.cmd in {"auth", "whoami", "login"}:
+        auth_command = args.auth_cmd if args.cmd == "auth" else args.cmd
+        if auth_command == "whoami":
+            return auth_cmd.whoami()
+        if auth_command == "login":
+            login_result = auth_cmd.login(username=args.username, key=args.key, path=args.path)
+            if login_result != 0:
+                return login_result
+            # Auto-fill or auto-create kaggle.toml
+            cfg_path = Path.cwd() / "kaggle.toml"
+            creds = credentials.load(args.path)
+            if cfg_path.exists():
+                try:
+                    cfg_mod.fill(cfg_path, username=creds.username)
+                    print(f"Auto-filled kaggle.toml with username={creds.username}")
+                except Exception:
+                    pass  # non-fatal
+            else:
+                # Scaffold a fresh kaggle.toml with project name = cwd folder name
+                try:
+                    project_name = Path.cwd().name.lower().replace(" ", "-")
+                    cfg_mod.scaffold(cfg_path, project_name=project_name, username=creds.username)
+                    print(f"Created kaggle.toml for project '{project_name}' with username={creds.username}")
+                except Exception as exc:
+                    print(f"Warning: could not create kaggle.toml: {exc}", file=sys.stderr)
+            return 0
     if args.cmd == "config":
         if args.cfg_cmd == "init":
-            return config_cmd.init(args.path, project_name=args.name, force=args.force)
+            return config_cmd.init(args.path, project_name=args.name, username=args.username, force=args.force, auto=args.auto)
         if args.cfg_cmd == "show":
             return config_cmd.show(json_output=getattr(args, "json_output", False))
         if args.cfg_cmd == "path":
             return config_cmd.path()
+        if args.cfg_cmd == "fill":
+            return config_cmd.fill(args.path, username=args.username, project_name=args.project_name)
     if args.cmd == "src":
         if args.src_cmd == "upload":
             return src_cmd.upload(

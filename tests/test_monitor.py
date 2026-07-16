@@ -11,22 +11,11 @@ so they never touch a real Kaggle project. The goal is to verify:
 
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-import pytest
-
-from kagglepipe.monitor import (
-    ArtifactView,
-    JobView,
-    MonitorSnapshot,
-    _humanize_bytes,
-    _humanize_time,
-    collect_snapshot,
-)
 from kagglepipe.commands.monitor import (
     _build_artifacts_panel,
     _build_best_submission_panel,
@@ -36,6 +25,14 @@ from kagglepipe.commands.monitor import (
     _build_overview_panel,
     build_layout,
     cmd_monitor,
+)
+from kagglepipe.monitor import (
+    ArtifactView,
+    JobView,
+    MonitorSnapshot,
+    _humanize_bytes,
+    _humanize_time,
+    collect_snapshot,
 )
 from kagglepipe.state import (
     ExperimentRecord,
@@ -48,7 +45,6 @@ from kagglepipe.state import (
     SubmissionStore,
     state_dir,
 )
-
 
 # ---- snapshot collector -------------------------------------------------
 
@@ -178,6 +174,7 @@ def _seed_state(root: Path) -> None:
 def _render(panel) -> str:
     """Render a Rich panel to a plain string for assertions."""
     from io import StringIO
+
     from rich.console import Console
     buf = StringIO()
     console = Console(file=buf, width=120, force_terminal=True, color_system="truecolor")
@@ -384,7 +381,7 @@ def test_cmd_monitor_via_subprocess(tmp_path) -> None:
     )
     assert result.returncode == 0
     # The Rich-rendered output should mention our project name
-    assert "testproj" in result.stdout or "test" in result.stdout
+    assert "seeded" in result.stdout
 
 
 def test_cmd_monitor_help_text() -> None:
